@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sidebar-width: 240px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+}
+
+/* Custom scrollbar for schedule grid */
+.schedule-grid::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.schedule-grid::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.schedule-grid::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+
+.schedule-grid::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Sticky columns for the schedule table */
+.schedule-table th:nth-child(1),
+.schedule-table td:nth-child(1) {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+.schedule-table th:nth-child(2),
+.schedule-table td:nth-child(2) {
+  position: sticky;
+  left: 32px;
+  z-index: 10;
+}
+
+.schedule-table th:nth-child(3),
+.schedule-table td:nth-child(3) {
+  position: sticky;
+  left: 112px;
+  z-index: 10;
+}
+
+.schedule-table thead th {
+  z-index: 20;
+}
+
+.schedule-table thead th:nth-child(1),
+.schedule-table thead th:nth-child(2),
+.schedule-table thead th:nth-child(3) {
+  z-index: 30;
+}
+
+/* Cell hover effect */
+.shift-cell {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  cursor: pointer;
+}
+
+.shift-cell:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 5;
+  position: relative;
+}
+
+/* Indicator dots */
+.cell-indicator {
+  position: absolute;
+  bottom: 1px;
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  width: 100%;
+}
+
+.dot-leave {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #EC4899;
+}
+
+.dot-taxi {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #14B8A6;
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+  animation: fadeIn 0.15s ease;
+}
+
+.modal-content {
+  animation: slideUp 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Branch sidebar */
+.sidebar-branch {
+  transition: background-color 0.1s ease;
+}
+
+.sidebar-branch:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-branch.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-left: 3px solid #60A5FA;
+}
