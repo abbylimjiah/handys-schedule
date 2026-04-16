@@ -13,6 +13,8 @@ interface HeaderProps {
   totalCount: number;
   branchTo?: number;
   isEditPeriod: boolean;
+  canEdit: boolean;
+  isHMBranch: boolean; // 현재 지점의 HM인지
   currentUser: CurrentUser | null;
   onManageEmployees?: () => void;
   onAdminPanel?: () => void;
@@ -25,7 +27,7 @@ interface HeaderProps {
 export default function Header({
   branchName, branchCode, month, year,
   workingCount, offCount, totalCount, branchTo,
-  isEditPeriod, currentUser,
+  isEditPeriod, canEdit, isHMBranch, currentUser,
   onManageEmployees, onAdminPanel, onMasterLogin, onLogout,
   onDownloadAmaranth, onDownloadAllAmaranth,
 }: HeaderProps) {
@@ -57,8 +59,17 @@ export default function Header({
           </span>
         </div>
 
-        {isEditPeriod ? (
-          <div className="px-2 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 text-[10px] md:text-xs font-medium">편집 가능</div>
+        {canEdit ? (
+          <div className="flex items-center gap-1">
+            <div className="px-2 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 text-[10px] md:text-xs font-medium">편집 가능</div>
+            {isHMBranch && currentUser?.role !== 'master' && (
+              <div className="px-2 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] md:text-xs font-medium">HM</div>
+            )}
+          </div>
+        ) : isEditPeriod && isHMBranch ? (
+          <div className="px-2 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 text-[10px] md:text-xs font-medium">편집 가능 (HM)</div>
+        ) : isEditPeriod ? (
+          <div className="px-2 py-1 rounded-full bg-yellow-50 border border-yellow-200 text-yellow-700 text-[10px] md:text-xs font-medium">편집기간 (권한 없음)</div>
         ) : (
           <div className="px-2 py-1 rounded-full bg-yellow-50 border border-yellow-200 text-yellow-700 text-[10px] md:text-xs font-medium">조회 전용</div>
         )}

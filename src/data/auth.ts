@@ -1,4 +1,7 @@
 // 3-Tier Permission System: Master / Editor(지점별) / Viewer
+// + HM 자동 편집: 편집기간 중 HM은 본인 소속 지점만 편집 가능
+
+import { Employee, getEmployees } from './mockData';
 
 export type UserRole = 'master' | 'editor' | 'viewer';
 
@@ -124,23 +127,69 @@ export function logout() {
   localStorage.removeItem(AUTH_KEY);
 }
 
-// Edit period check (20th~24th)
+// 편집기간 예외 설정 (특정 월만 날짜 변경)
+interface EditPeriodException {
+  year: number;
+  editMonth: number;    // 편집이 일어나는 월 (현재 달력 기준)
+  startDay: number;
+  endDay: number;
+  targetMonth: number;  // 편집 대상 스케줄 월
+}
+
+const EDIT_PERIOD_EXCEPTIONS: EditPeriodException[] = [
+  // 2026년 5월 스케줄: 4월 17~24일에 편집
+  { year: 2026, editMonth: 4, startDay: 17, endDay: 24, targetMonth: 5 },
+];
+
+// Edit period check (기본: 20~24일, 예외 적용)
 export function isEditPeriod(): boolean {
-  const day = new Date().getDate();
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+
+  // 예외 기간 확인
+  for (const ex of EDIT_PERIOD_EXCEPTIONS) {
+    if (year === ex.year && month === ex.editMonth && day >= ex.startDay && day <= ex.endDay) {
+      return true;
+    }
+  }
+
+  // 기본: 매월 20~24일
   return day >= 20 && day <= 24;
 }
 
-// Permissions (지점별)
-export function canEditSchedule(user: CurrentUser | null, branchCode?: string): boolean {
+// HM 자동 편집: 로그인한 사용자가 해당 지점의 HM인지 확인
+export function getHMBranch(name: string, employees?: Employee[]): string | null {
+  const emps = employees || getEmployees();
+  const hm = emps.find(e => e.name === name && e.role === 'HM');
+  return hm ? hm.code : null;
+}
+
+export function isHMForBranch(userName: string, branchCode: string, employees?: Employee[]): boolean {
+  const hmBranch = getHMBranch(userName, employees);
+  return hmBranch === branchCode;
+}
+
+// Permissions (지점별 + HM 자동편집)
+export function canEditSchedule(user: CurrentUser | null, branchCode?: string, employees?: Employee[]): boolean {
   if (!user) return false;
   if (user.role === 'master') return true;
-  if (user.role === 'editor') {
-    const settings = getAdminSettings();
-    const periodOk = isEditPeriod() || settings.editPeriodOverride;
-    if (!periodOk) return false;
-    if (!branchCode) return true; // 지점 미지정이면 일반 편집 가능 여부만
+
+  const settings = getAdminSettings();
+  const periodOk = isEditPeriod() || settings.editPeriodOverride;
+
+  // 에디터: 편집기간 중 지정된 지점 편집 가능
+  if (user.role === 'editor' && periodOk) {
+    if (!branchCode) return true;
     return isEditorForBranch(user.name, branchCode);
   }
+
+  // HM 자동 편집: 편집기간 중 본인 소속 지점만 편집 가능
+  if (periodOk && branchCode) {
+    if (isHMForBranch(user.name, branchCode, employees)) return true;
+  }
+
   return false;
 }
 
@@ -148,16 +197,23 @@ export function canEditLeaveRequest(user: CurrentUser | null): boolean {
   return user?.role === 'master';
 }
 
-export function canDeleteSchedule(user: CurrentUser | null, branchCode?: string): boolean {
+export function canDeleteSchedule(user: CurrentUser | null, branchCode?: string, employees?: Employee[]): boolean {
   if (!user) return false;
   if (user.role === 'master') return true;
-  if (user.role === 'editor') {
-    const settings = getAdminSettings();
-    const periodOk = isEditPeriod() || settings.editPeriodOverride;
-    if (!periodOk) return false;
+
+  const settings = getAdminSettings();
+  const periodOk = isEditPeriod() || settings.editPeriodOverride;
+
+  if (user.role === 'editor' && periodOk) {
     if (!branchCode) return true;
     return isEditorForBranch(user.name, branchCode);
   }
+
+  // HM 자동 삭제: 편집기간 중 본인 소속 지점만
+  if (periodOk && branchCode) {
+    if (isHMForBranch(user.name, branchCode, employees)) return true;
+  }
+
   return false;
 }
 

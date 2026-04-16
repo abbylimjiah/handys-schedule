@@ -26,6 +26,7 @@ import {
   canManageEmployees,
   isEditPeriod as checkEditPeriod,
   getAdminSettings,
+  getHMBranch,
 } from '@/data/auth';
 import { downloadAmaranthExcel, downloadAllBranchesAmaranth } from '@/data/amaranth';
 
@@ -63,11 +64,12 @@ export default function Home() {
 
   const settings = getAdminSettings();
   const editPeriod = checkEditPeriod() || settings.editPeriodOverride;
-  const canEdit = canEditSchedule(currentUser, selectedBranch);
+  const canEdit = canEditSchedule(currentUser, selectedBranch, employees);
   const canEditLeave = canEditLeaveRequest(currentUser);
-  const canDelete = canDeleteSchedule(currentUser, selectedBranch);
+  const canDelete = canDeleteSchedule(currentUser, selectedBranch, employees);
   const canManage = canManageEmployees(currentUser);
   const isMaster = currentUser?.role === 'master';
+  const isHMBranch = currentUser ? getHMBranch(currentUser.name, employees) === selectedBranch : false;
 
   const handleEmployeeUpdate = useCallback((emp: Employee, field: string, value: string) => {
     setEmployees(prev => {
@@ -125,6 +127,8 @@ export default function Home() {
           totalCount={branchEmployees.length}
           branchTo={branch?.to}
           isEditPeriod={editPeriod}
+          canEdit={canEdit}
+          isHMBranch={isHMBranch}
           currentUser={currentUser}
           onManageEmployees={canManage ? () => setEmployeeModalOpen(true) : undefined}
           onAdminPanel={isMaster ? () => setAdminPanelOpen(true) : undefined}
