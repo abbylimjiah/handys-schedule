@@ -12,21 +12,31 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelProps) {
   const [settings, setSettings] = useState(getAdminSettings());
+  const [savedSettings, setSavedSettings] = useState(getAdminSettings());
   const [search, setSearch] = useState('');
   const [showPwChange, setShowPwChange] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [pwMsg, setPwMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [saveMsg, setSaveMsg] = useState(false);
 
   useEffect(() => {
-    if (isOpen) setSettings(getAdminSettings());
+    if (isOpen) {
+      const s = getAdminSettings();
+      setSettings(s);
+      setSavedSettings(s);
+      setSaveMsg(false);
+    }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   const uniqueNames = Array.from(new Set(employees.map(e => e.name))).sort();
   const filtered = search ? uniqueNames.filter(n => n.includes(search)) : uniqueNames;
+
+  // 변경사항 있는지 체크
+  const hasChanges = JSON.stringify(settings) !== JSON.stringify(savedSettings);
 
   const toggleEditor = (name: string) => {
     const newSettings = { ...settings };
@@ -36,25 +46,32 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
       newSettings.grantedEditors = [...newSettings.grantedEditors, name];
     }
     setSettings(newSettings);
-    saveAdminSettings(newSettings);
+    setSaveMsg(false);
   };
 
   const toggleEditPeriod = () => {
     const newSettings = { ...settings, editPeriodOverride: !settings.editPeriodOverride };
     setSettings(newSettings);
-    saveAdminSettings(newSettings);
+    setSaveMsg(false);
   };
 
   const selectAll = () => {
     const newSettings = { ...settings, grantedEditors: [...uniqueNames] };
     setSettings(newSettings);
-    saveAdminSettings(newSettings);
+    setSaveMsg(false);
   };
 
   const deselectAll = () => {
     const newSettings = { ...settings, grantedEditors: [] };
     setSettings(newSettings);
-    saveAdminSettings(newSettings);
+    setSaveMsg(false);
+  };
+
+  const handleSave = () => {
+    saveAdminSettings(settings);
+    setSavedSettings(settings);
+    setSaveMsg(true);
+    setTimeout(() => setSaveMsg(false), 2000);
   };
 
   return (
@@ -166,6 +183,28 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
               </label>
             ))}
           </div>
+        </div>
+
+        {/* 저장 버튼 */}
+        <div className="p-4 border-t bg-gray-50 flex items-center justify-between gap-3">
+          {saveMsg ? (
+            <span className="text-sm text-green-600 font-medium">저장 완료!</span>
+          ) : hasChanges ? (
+            <span className="text-xs text-orange-500">변경사항이 있습니다</span>
+          ) : (
+            <span className="text-xs text-gray-400">변경사항 없음</span>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges}
+            className={`px-6 py-2 rounded-lg text-sm font-semibold transition ${
+              hasChanges
+                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            저장
+          </button>
         </div>
       </div>
     </div>
