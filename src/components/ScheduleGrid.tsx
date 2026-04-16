@@ -381,6 +381,21 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
             </tr>
           </thead>
           <tbody>
+            {/* 공휴일 행 */}
+            <tr className="bg-red-50/70">
+              <td className="bg-red-50/70 border-r border-b border-gray-200"></td>
+              <td colSpan={2} className="bg-red-50/70 border-r border-b border-gray-200 px-2 py-1 text-red-500 font-semibold text-[10px]">공휴일</td>
+              {days.map((day, i) => {
+                const isToday = i === todayIndex;
+                return (
+                  <td key={i} className={`border-r border-b border-gray-200 px-0 py-0.5 text-center ${
+                    isToday ? 'bg-red-100' : day.holiday || day.dow === 0 ? 'bg-red-50' : day.dow === 6 ? 'bg-blue-50/50' : 'bg-red-50/30'
+                  }`}>
+                    {day.holiday && <div className="text-[7px] text-red-500 font-bold leading-tight">{day.holiday}</div>}
+                  </td>
+                );
+              })}
+            </tr>
             {/* MEMO row - editable */}
             <tr className="bg-yellow-50">
               <td className="bg-yellow-50 border-r border-b border-gray-200"></td>
@@ -398,7 +413,6 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                     setEditingMemoIdx(i); setEditingMemoValue(memoVal);
                   }}
                   >
-                    {day.holiday && <div className="text-[7px] text-red-400 font-medium leading-tight">{day.holiday}</div>}
                     {isEditingMemo ? (
                       <input
                         autoFocus
