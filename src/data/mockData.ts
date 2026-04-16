@@ -106,9 +106,11 @@ export const branches: Branch[] = [
   { code: '30', name: '속초중앙', region: '속초/강원', to: 7 },
   { code: '32', name: '속초 자이엘라', region: '속초/강원', to: 6 },
   { code: '33', name: '플라트 더 각 양양', region: '속초/강원', to: 6 },
+  // 가평
+  { code: '34', name: '플라트 위드 오버더마운틴', region: '가평', to: 5 },
 ];
 
-export const regions = ['본사', '서울', '수도권', '충청', '부산', '울산', '제주', '속초/강원'];
+export const regions = ['본사', '서울', '수도권', '충청', '부산', '울산', '제주', '속초/강원', '가평'];
 
 // Full employee roster (from 핸디즈 tab - 2026-04 latest)
 export const defaultEmployees: Employee[] = [
@@ -294,6 +296,12 @@ export const defaultEmployees: Employee[] = [
   { code: '33', branch: '플라트 더 각 양양', num: 4, name: 'Hai', role: 'Mgr', hireDate: '2024-12-16' },
   { code: '33', branch: '플라트 더 각 양양', num: 5, name: 'Owen', role: 'Mgr', hireDate: '2025-03-04' },
   { code: '33', branch: '플라트 더 각 양양', num: 6, name: 'Yze', role: 'Mgr', hireDate: '2025-08-04' },
+  // 34 플라트 위드 오버더마운틴
+  { code: '34', branch: '플라트 위드 오버더마운틴', num: 1, name: '', role: 'HM', hireDate: '' },
+  { code: '34', branch: '플라트 위드 오버더마운틴', num: 2, name: '', role: 'Mgr', hireDate: '' },
+  { code: '34', branch: '플라트 위드 오버더마운틴', num: 3, name: '', role: 'Mgr', hireDate: '' },
+  { code: '34', branch: '플라트 위드 오버더마운틴', num: 4, name: '', role: 'Mgr', hireDate: '' },
+  { code: '34', branch: '플라트 위드 오버더마운틴', num: 5, name: '', role: 'Mgr', hireDate: '' },
 ];
 
 // localStorage key for employee data
