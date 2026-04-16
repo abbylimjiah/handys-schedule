@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CurrentUser, loginMaster, loginByName } from '@/data/auth';
+import { CurrentUser, loginMaster, loginByEmail, isValidCompanyEmail } from '@/data/auth';
 
 interface LoginModalProps {
   mode: 'name' | 'master';
@@ -10,9 +10,21 @@ interface LoginModalProps {
 }
 
 export default function LoginModal({ mode, onLogin, onClose }: LoginModalProps) {
+  const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  const handleEmailLogin = () => {
+    const trimEmail = email.trim();
+    const trimName = name.trim();
+    if (!trimEmail) { setError('이메일을 입력해주세요'); return; }
+    if (!isValidCompanyEmail(trimEmail)) { setError('핸디즈 이메일(@handys.co.kr)만 사용 가능합니다'); return; }
+    if (!trimName) { setError('닉네임을 입력해주세요'); return; }
+    const user = loginByEmail(trimEmail, trimName);
+    if (user) onLogin(user);
+    else setError('로그인에 실패했습니다');
+  };
 
   if (mode === 'name') {
     return (
@@ -24,30 +36,37 @@ export default function LoginModal({ mode, onLogin, onClose }: LoginModalProps) 
           </div>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">이름을 입력해주세요</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">회사 이메일</label>
               <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && name.trim()) {
-                    onLogin(loginByName(name.trim()));
-                  }
-                }}
-                placeholder="예: 홍길동"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                type="email"
+                value={email}
+                onChange={e => { setEmail(e.target.value); setError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter' && email && name) handleEmailLogin(); }}
+                placeholder="example@handys.co.kr"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">닉네임</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => { setName(e.target.value); setError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter' && email && name) handleEmailLogin(); }}
+                placeholder="예: Abby"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
             <button
-              onClick={() => {
-                if (name.trim()) onLogin(loginByName(name.trim()));
-              }}
-              disabled={!name.trim()}
+              onClick={handleEmailLogin}
+              disabled={!email.trim() || !name.trim()}
               className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium disabled:opacity-40 hover:bg-blue-700 transition"
             >
               입장하기
             </button>
+            <p className="text-[11px] text-gray-400 text-center">@handys.co.kr 이메일을 가진 직원만 접속할 수 있습니다</p>
           </div>
         </div>
       </div>

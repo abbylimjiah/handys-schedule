@@ -4,6 +4,7 @@ export type UserRole = 'master' | 'editor' | 'viewer';
 
 export interface CurrentUser {
   name: string;
+  email: string;
   role: UserRole;
 }
 
@@ -43,18 +44,29 @@ export function saveAdminSettings(settings: AdminSettings) {
   localStorage.setItem(ADMIN_KEY, JSON.stringify(settings));
 }
 
+// 회사 이메일 검증
+const COMPANY_DOMAIN = 'handys.co.kr';
+
+export function isValidCompanyEmail(email: string): boolean {
+  const lower = email.toLowerCase().trim();
+  return lower.endsWith(`@${COMPANY_DOMAIN}`);
+}
+
 // Login
 export function loginMaster(password: string): CurrentUser | null {
   if (password !== getMasterPassword()) return null;
-  const user: CurrentUser = { name: 'Abby', role: 'master' };
+  // 기존 로그인 유저 정보에서 email 가져오기
+  const existing = getCurrentUser();
+  const user: CurrentUser = { name: 'Abby', email: existing?.email || 'abby@handys.co.kr', role: 'master' };
   localStorage.setItem(AUTH_KEY, JSON.stringify(user));
   return user;
 }
 
-export function loginByName(name: string): CurrentUser {
+export function loginByEmail(email: string, name: string): CurrentUser | null {
+  if (!isValidCompanyEmail(email)) return null;
   const settings = getAdminSettings();
   const role: UserRole = settings.grantedEditors.includes(name) ? 'editor' : 'viewer';
-  const user: CurrentUser = { name, role };
+  const user: CurrentUser = { name, email: email.toLowerCase().trim(), role };
   localStorage.setItem(AUTH_KEY, JSON.stringify(user));
   return user;
 }
