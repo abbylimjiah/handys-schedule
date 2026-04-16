@@ -68,6 +68,7 @@ export default function LoginModal({ mode, onLogin, onClose }: LoginModalProps) 
               입장하기
             </button>
             <p className="text-[11px] text-gray-400 text-center">@handys.co.kr 이메일을 가진 직원만 접속할 수 있습니다</p>
+            <p className="text-[10px] text-blue-400 text-center">마스터 권한 사용자는 이메일 로그인 시 자동 인증됩니다</p>
           </div>
         </div>
       </div>

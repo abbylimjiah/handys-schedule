@@ -210,9 +210,11 @@ export default function EmployeeModal({
                       ) : (
                         <span
                           onClick={() => handleStartEdit(emp, 'hireDate')}
-                          className="cursor-pointer hover:text-blue-600"
+                          className={`cursor-pointer inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-dashed border-gray-200 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 transition ${emp.hireDate ? 'text-gray-600' : 'text-gray-300 italic'}`}
+                          title="클릭하여 입사일 편집"
                         >
-                          {emp.hireDate || '-'}
+                          {emp.hireDate || '(입력)'}
+                          <span className="text-[10px] text-gray-300">✏</span>
                         </span>
                       )}
                     </td>

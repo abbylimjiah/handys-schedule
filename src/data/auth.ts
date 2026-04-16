@@ -98,12 +98,29 @@ export function loginMaster(password: string): CurrentUser | null {
 
 export function loginByEmail(email: string, name: string): CurrentUser | null | 'blocked' {
   if (!isValidCompanyEmail(email)) return null;
-  // 차단 확인
+  const trimEmail = email.toLowerCase().trim();
+
+  // ManagedUser에서 역할 확인 (이메일 매칭 우선)
+  const managedUsers = getManagedUsers();
+  const managedUser = managedUsers.find(u =>
+    (u.email && u.email.toLowerCase().trim() === trimEmail) || u.englishName === name
+  );
+
+  // 차단 확인 (이름 또는 매칭된 ManagedUser)
   if (isUserBlocked(name)) return 'blocked';
-  const settings = getAdminSettings();
-  const isEditor = settings.editorPermissions.some(ep => ep.name === name);
-  const role: UserRole = isEditor ? 'editor' : 'viewer';
-  const user: CurrentUser = { name, email: email.toLowerCase().trim(), role };
+  if (managedUser?.status === 'blocked') return 'blocked';
+
+  let role: UserRole;
+  if (managedUser?.role === 'master') {
+    // 마스터: 이메일로 자동 인증
+    role = 'master';
+  } else {
+    const settings = getAdminSettings();
+    const isEditor = settings.editorPermissions.some(ep => ep.name === name);
+    role = isEditor ? 'editor' : 'viewer';
+  }
+
+  const user: CurrentUser = { name, email: trimEmail, role };
   localStorage.setItem(AUTH_KEY, JSON.stringify(user));
   return user;
 }
@@ -114,7 +131,21 @@ export function getCurrentUser(): CurrentUser | null {
     const saved = localStorage.getItem(AUTH_KEY);
     if (saved) {
       const user = JSON.parse(saved) as CurrentUser;
-      if (user.role === 'editor' || user.role === 'viewer') {
+      // ManagedUser로 역할 재확인 (승격/강등 즉시 반영)
+      const managedUsers = getManagedUsers();
+      const emailLower = (user.email || '').toLowerCase().trim();
+      const managedUser = managedUsers.find(u =>
+        (u.email && u.email.toLowerCase().trim() === emailLower) || u.englishName === user.name
+      );
+      if (managedUser?.status === 'blocked') {
+        // 차단된 경우 로그아웃 처리
+        localStorage.removeItem(AUTH_KEY);
+        return null;
+      }
+      if (managedUser?.role === 'master') {
+        user.role = 'master';
+      } else if (user.role !== 'master') {
+        // 비마스터는 ManagedUser 기반 재계산
         const settings = getAdminSettings();
         const isEditor = settings.editorPermissions.some(ep => ep.name === user.name);
         user.role = isEditor ? 'editor' : 'viewer';
