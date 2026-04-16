@@ -96,8 +96,10 @@ export function loginMaster(password: string): CurrentUser | null {
   return user;
 }
 
-export function loginByEmail(email: string, name: string): CurrentUser | null {
+export function loginByEmail(email: string, name: string): CurrentUser | null | 'blocked' {
   if (!isValidCompanyEmail(email)) return null;
+  // 차단 확인
+  if (isUserBlocked(name)) return 'blocked';
   const settings = getAdminSettings();
   const isEditor = settings.editorPermissions.some(ep => ep.name === name);
   const role: UserRole = isEditor ? 'editor' : 'viewer';
@@ -219,4 +221,90 @@ export function canDeleteSchedule(user: CurrentUser | null, branchCode?: string,
 
 export function canManageEmployees(user: CurrentUser | null): boolean {
   return user?.role === 'master';
+}
+
+// ─── User Management (사용자 관리) ───
+export type ManagedRole = 'branch' | 'viewer' | 'master';
+
+export interface ManagedUser {
+  englishName: string;
+  koreanName: string;
+  email: string;
+  role: ManagedRole;        // branch = 지점 에디터, viewer, master
+  branches: string[];       // role='branch'일 때 접근 가능 지점 코드
+  homeBranch: string;       // 소속 지점 코드
+  homeBranchName: string;   // 소속 지점 이름
+  status: 'active' | 'blocked';
+}
+
+const MANAGED_USERS_KEY = 'handys-managed-users';
+
+export function getManagedUsers(): ManagedUser[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const saved = localStorage.getItem(MANAGED_USERS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return [];
+}
+
+export function saveManagedUsers(users: ManagedUser[]): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(MANAGED_USERS_KEY, JSON.stringify(users));
+  // AdminSettings와 동기화 (editorPermissions)
+  syncManagedUsersToSettings(users);
+}
+
+function syncManagedUsersToSettings(users: ManagedUser[]) {
+  const settings = getAdminSettings();
+  settings.editorPermissions = users
+    .filter(u => u.role === 'branch' && u.status === 'active')
+    .map(u => ({ name: u.englishName, branches: u.branches }));
+  settings.grantedEditors = settings.editorPermissions.map(ep => ep.name);
+  localStorage.setItem(ADMIN_KEY, JSON.stringify(settings));
+}
+
+// 직원 목록 + amaranth roster에서 ManagedUser 초기화
+export function initManagedUsers(
+  employees: Employee[],
+  roster: Record<string, { realName: string; empCode: string }>
+): ManagedUser[] {
+  const existing = getManagedUsers();
+  if (existing.length > 0) return existing; // 이미 초기화됨
+
+  const seen = new Set<string>();
+  const users: ManagedUser[] = [];
+
+  employees.forEach(emp => {
+    if (!emp.name.trim() || seen.has(emp.name)) return;
+    seen.add(emp.name);
+    const info = roster[emp.name];
+    users.push({
+      englishName: emp.name,
+      koreanName: info?.realName || '',
+      email: '',
+      role: 'viewer',
+      branches: [emp.code],
+      homeBranch: emp.code,
+      homeBranchName: emp.branch,
+      status: 'active',
+    });
+  });
+
+  saveManagedUsers(users);
+  return users;
+}
+
+// 차단된 사용자 확인
+export function isUserBlocked(name: string): boolean {
+  const users = getManagedUsers();
+  const user = users.find(u => u.englishName === name);
+  return user?.status === 'blocked';
+}
+
+// 사용자 역할 확인 (ManagedUsers 기준)
+export function getManagedUserRole(name: string): ManagedRole {
+  const users = getManagedUsers();
+  const user = users.find(u => u.englishName === name);
+  return user?.role || 'viewer';
 }

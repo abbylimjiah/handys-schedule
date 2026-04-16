@@ -21,8 +21,9 @@ export default function LoginModal({ mode, onLogin, onClose }: LoginModalProps) 
     if (!trimEmail) { setError('이메일을 입력해주세요'); return; }
     if (!isValidCompanyEmail(trimEmail)) { setError('핸디즈 이메일(@handys.co.kr)만 사용 가능합니다'); return; }
     if (!trimName) { setError('닉네임을 입력해주세요'); return; }
-    const user = loginByEmail(trimEmail, trimName);
-    if (user) onLogin(user);
+    const result = loginByEmail(trimEmail, trimName);
+    if (result === 'blocked') { setError('차단된 계정입니다. 관리자에게 문의하세요.'); return; }
+    if (result) onLogin(result);
     else setError('로그인에 실패했습니다');
   };
 
