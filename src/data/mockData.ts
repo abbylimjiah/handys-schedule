@@ -297,7 +297,7 @@ export const defaultEmployees: Employee[] = [
   { code: '33', branch: '플라트 더 각 양양', num: 5, name: 'Owen', role: 'Mgr', hireDate: '2025-03-04' },
   { code: '33', branch: '플라트 더 각 양양', num: 6, name: 'Yze', role: 'Mgr', hireDate: '2025-08-04' },
   // 34 플라트 위드 오버더마운틴
-  { code: '34', branch: '플라트 위드 오버더마운틴', num: 1, name: '', role: 'HM', hireDate: '' },
+  { code: '34', branch: '플라트 위드 오버더마운틴', num: 1, name: 'Adene', role: 'HM', hireDate: '2026-04-16' },
   { code: '34', branch: '플라트 위드 오버더마운틴', num: 2, name: '', role: 'Mgr', hireDate: '' },
   { code: '34', branch: '플라트 위드 오버더마운틴', num: 3, name: '', role: 'Mgr', hireDate: '' },
   { code: '34', branch: '플라트 위드 오버더마운틴', num: 4, name: '', role: 'Mgr', hireDate: '' },

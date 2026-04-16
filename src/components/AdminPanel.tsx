@@ -28,6 +28,7 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
   const [pwMsg, setPwMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [saveMsg, setSaveMsg] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [customName, setCustomName] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -189,15 +190,44 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
         </div>
 
         {showAddForm && (
-          <div className="p-3 border-b bg-blue-50 max-h-32 overflow-y-auto">
-            <div className="text-[10px] text-blue-600 mb-1 font-medium">클릭하여 에디터로 추가 (소속 지점 자동 배정)</div>
-            <div className="flex flex-wrap gap-1">
-              {uniqueNames.filter(n => !perms.some(p => p.name === n)).map(name => (
-                <button key={name} onClick={() => addEditor(name)}
-                  className="px-2 py-0.5 text-[11px] bg-white border border-blue-200 rounded hover:bg-blue-100 text-blue-700">
-                  {name}
+          <div className="p-3 border-b bg-blue-50 space-y-2">
+            {/* 직접 입력 */}
+            <div>
+              <div className="text-[10px] text-blue-600 mb-1 font-medium">직접 입력 (직원 목록에 없는 사람도 추가 가능)</div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customName}
+                  onChange={e => setCustomName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && customName.trim()) {
+                      addEditor(customName.trim());
+                      setCustomName('');
+                    }
+                  }}
+                  placeholder="이름 입력 후 Enter 또는 추가 클릭"
+                  className="flex-1 px-2 py-1 text-xs border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                />
+                <button
+                  onClick={() => { if (customName.trim()) { addEditor(customName.trim()); setCustomName(''); } }}
+                  disabled={!customName.trim()}
+                  className={`px-3 py-1 text-xs rounded font-medium ${customName.trim() ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                >
+                  추가
                 </button>
-              ))}
+              </div>
+            </div>
+            {/* 기존 직원 선택 */}
+            <div>
+              <div className="text-[10px] text-blue-600 mb-1 font-medium">또는 직원 클릭하여 추가 (소속 지점 자동 배정)</div>
+              <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                {uniqueNames.filter(n => !perms.some(p => p.name === n)).map(name => (
+                  <button key={name} onClick={() => addEditor(name)}
+                    className="px-2 py-0.5 text-[11px] bg-white border border-blue-200 rounded hover:bg-blue-100 text-blue-700">
+                    {name}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
