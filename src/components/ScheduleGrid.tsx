@@ -72,7 +72,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
 
   // Bulk mode state
   const [bulkMode, setBulkMode] = useState(false);
-  const [bulkShift, setBulkShift] = useState<ShiftType>('D9');
+  const [bulkShift, setBulkShift] = useState<ShiftType | 'DELETE'>('D9');
   const [isDragging, setIsDragging] = useState(false);
   const [dragEmpKey, setDragEmpKey] = useState<string | null>(null);
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
@@ -137,12 +137,16 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     setScheduleCache(prev => {
       const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
       const empSchedule = [...(branchSchedule[empKey] || [])];
-      empSchedule[dayIndex] = {
-        shift: bulkShift,
-        leaveRequest: bulkShift.startsWith('#') && bulkShift !== '#' ? true : empSchedule[dayIndex]?.leaveRequest || false,
-        kakaoT: empSchedule[dayIndex]?.kakaoT || false,
-        memo: empSchedule[dayIndex]?.memo || '',
-      };
+      if (bulkShift === 'DELETE') {
+        empSchedule[dayIndex] = { shift: '' as ShiftType, leaveRequest: false, kakaoT: false, memo: '' };
+      } else {
+        empSchedule[dayIndex] = {
+          shift: bulkShift,
+          leaveRequest: bulkShift.startsWith('#') && bulkShift !== '#' ? true : empSchedule[dayIndex]?.leaveRequest || false,
+          kakaoT: empSchedule[dayIndex]?.kakaoT || false,
+          memo: empSchedule[dayIndex]?.memo || '',
+        };
+      }
       branchSchedule[empKey] = empSchedule;
       return { ...prev, [cacheKey]: branchSchedule };
     });
@@ -305,8 +309,22 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                   </button>
                 );
               })}
+              {canDelete && (
+                <button
+                  onClick={() => setBulkShift('DELETE')}
+                  className={`px-2 py-1 text-[10px] font-bold rounded border-2 transition-all ${
+                    bulkShift === 'DELETE'
+                      ? 'bg-red-100 text-red-700 border-red-400 shadow-sm scale-110'
+                      : 'bg-red-50 text-red-400 border-transparent opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  🗑 삭제
+                </button>
+              )}
             </div>
-            <span className="text-[10px] text-blue-500 ml-2">셀을 클릭하거나 드래그하여 일괄 입력</span>
+            <span className="text-[10px] text-blue-500 ml-2">
+              {bulkShift === 'DELETE' ? '삭제할 셀을 클릭하거나 드래그' : '셀을 클릭하거나 드래그하여 일괄 입력'}
+            </span>
           </>
         )}
       </div>}
