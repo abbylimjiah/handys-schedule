@@ -63,9 +63,9 @@ export default function Home() {
 
   const settings = getAdminSettings();
   const editPeriod = checkEditPeriod() || settings.editPeriodOverride;
-  const canEdit = canEditSchedule(currentUser);
+  const canEdit = canEditSchedule(currentUser, selectedBranch);
   const canEditLeave = canEditLeaveRequest(currentUser);
-  const canDelete = canDeleteSchedule(currentUser);
+  const canDelete = canDeleteSchedule(currentUser, selectedBranch);
   const canManage = canManageEmployees(currentUser);
   const isMaster = currentUser?.role === 'master';
 
