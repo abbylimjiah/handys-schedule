@@ -13,6 +13,9 @@ interface CellModalProps {
   dowLabel: string;
   holiday?: string;
   onSave: (data: CellData) => void;
+  onDelete?: () => void;
+  canEditLeave?: boolean;
+  canDelete?: boolean;
 }
 
 export default function CellModal({
@@ -25,6 +28,9 @@ export default function CellModal({
   dowLabel,
   holiday,
   onSave,
+  onDelete,
+  canEditLeave = true,
+  canDelete = false,
 }: CellModalProps) {
   const [shift, setShift] = useState<ShiftType>(cellData.shift);
   const [leaveRequest, setLeaveRequest] = useState(cellData.leaveRequest);
@@ -160,34 +166,38 @@ export default function CellModal({
             )}
           </div>
 
-          {/* Leave request */}
-          <div className="flex items-center justify-between py-2 border-t border-gray-100">
+          {/* Leave request (Admin only) */}
+          <div className={`flex items-center justify-between py-2 border-t border-gray-100 ${!canEditLeave ? 'opacity-50' : ''}`}>
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-pink-400"></div>
               <span className="text-sm font-medium text-gray-700">연차상신</span>
+              {!canEditLeave && <span className="text-[9px] text-gray-400">(Master 전용)</span>}
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
+            <label className={`relative inline-flex items-center ${canEditLeave ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
               <input
                 type="checkbox"
                 checked={leaveRequest}
-                onChange={e => setLeaveRequest(e.target.checked)}
+                onChange={e => canEditLeave && setLeaveRequest(e.target.checked)}
+                disabled={!canEditLeave}
                 className="sr-only peer"
               />
               <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-pink-400"></div>
             </label>
           </div>
 
-          {/* KakaoT */}
-          <div className="flex items-center justify-between py-2 border-t border-gray-100">
+          {/* KakaoT (Admin only) */}
+          <div className={`flex items-center justify-between py-2 border-t border-gray-100 ${!canEditLeave ? 'opacity-50' : ''}`}>
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-teal-400"></div>
               <span className="text-sm font-medium text-gray-700">카카오T</span>
+              {!canEditLeave && <span className="text-[9px] text-gray-400">(Master 전용)</span>}
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
+            <label className={`relative inline-flex items-center ${canEditLeave ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
               <input
                 type="checkbox"
                 checked={kakaoT}
-                onChange={e => setKakaoT(e.target.checked)}
+                onChange={e => canEditLeave && setKakaoT(e.target.checked)}
+                disabled={!canEditLeave}
                 className="sr-only peer"
               />
               <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-400"></div>
@@ -208,13 +218,23 @@ export default function CellModal({
             />
           </div>
 
-          {/* Save button */}
-          <button
-            onClick={handleSave}
-            className="w-full py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-600 transition-colors"
-          >
-            저장
-          </button>
+          {/* Buttons */}
+          <div className="flex gap-2">
+            {canDelete && cellData.shift && (
+              <button
+                onClick={() => { if (onDelete) { onDelete(); onClose(); } }}
+                className="px-4 py-2 bg-red-50 text-red-600 text-sm font-medium rounded-lg hover:bg-red-100 border border-red-200 transition-colors"
+              >
+                삭제
+              </button>
+            )}
+            <button
+              onClick={handleSave}
+              className="flex-1 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-600 transition-colors"
+            >
+              저장
+            </button>
+          </div>
         </div>
       </div>
     </div>

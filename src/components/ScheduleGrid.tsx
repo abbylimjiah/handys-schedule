@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
-  getEmployees,
   getMonthInfo,
   generateScheduleData,
   getShiftStyle,
+  shiftCategories,
+  shiftDescriptions,
   CellData,
   Employee,
+  ShiftType,
 } from '@/data/mockData';
 import CellModal from './CellModal';
 
@@ -17,9 +19,39 @@ interface ScheduleGridProps {
   year: number;
   employees: Employee[];
   onEmployeeUpdate?: (employee: Employee, field: 'name', value: string) => void;
+  canEdit?: boolean;
+  canEditLeave?: boolean;
+  canDelete?: boolean;
 }
 
-export default function ScheduleGrid({ branchCode, month, year, employees, onEmployeeUpdate }: ScheduleGridProps) {
+const bulkShiftOptions: { code: ShiftType; label: string }[] = [
+  { code: 'D6', label: 'D6' },
+  { code: 'D9', label: 'D9' },
+  { code: 'M', label: 'M' },
+  { code: 'E', label: 'E' },
+  { code: 'N', label: 'N' },
+  { code: '#', label: '#' },
+  { code: '#(연차)', label: '연차' },
+  { code: '#(대체)', label: '대체' },
+  { code: 'D9/반', label: 'D9반' },
+  { code: 'E/반', label: 'E반' },
+  { code: '파견', label: '파견' },
+];
+
+// Summary table column config
+const summaryCols = [
+  { key: 'D6', label: 'D6', bg: 'bg-amber-100', text: 'text-amber-800', hBg: 'bg-amber-500' },
+  { key: 'D9', label: 'D9', bg: 'bg-blue-100', text: 'text-blue-800', hBg: 'bg-blue-600' },
+  { key: 'M', label: 'M', bg: 'bg-violet-100', text: 'text-violet-800', hBg: 'bg-violet-600' },
+  { key: 'E', label: 'E', bg: 'bg-orange-100', text: 'text-orange-800', hBg: 'bg-orange-500' },
+  { key: 'N', label: 'N', bg: 'bg-teal-100', text: 'text-teal-800', hBg: 'bg-teal-600' },
+  { key: '#', label: '#', bg: 'bg-gray-100', text: 'text-gray-600', hBg: 'bg-gray-500' },
+  { key: 'leave', label: '연차', bg: 'bg-pink-100', text: 'text-pink-700', hBg: 'bg-pink-600' },
+  { key: 'work', label: '근무일', bg: 'bg-blue-50', text: 'text-blue-800', hBg: 'bg-blue-800' },
+  { key: 'off', label: '휴무일', bg: 'bg-gray-50', text: 'text-gray-600', hBg: 'bg-gray-600' },
+];
+
+export default function ScheduleGrid({ branchCode, month, year, employees, onEmployeeUpdate, canEdit = true, canEditLeave = true, canDelete = false }: ScheduleGridProps) {
   type BranchSchedule = Record<string, CellData[]>;
   const [scheduleCache, setScheduleCache] = useState<Record<string, BranchSchedule>>({});
   const [modalOpen, setModalOpen] = useState(false);
@@ -33,6 +65,38 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
   } | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState('');
+  const [showSummary, setShowSummary] = useState(true);
+  const [dayMemos, setDayMemos] = useState<Record<string, string>>({}); // key: "branchCode-month-dayIdx"
+  const [editingMemoIdx, setEditingMemoIdx] = useState<number | null>(null);
+  const [editingMemoValue, setEditingMemoValue] = useState('');
+
+  // Bulk mode state
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkShift, setBulkShift] = useState<ShiftType>('D9');
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragEmpKey, setDragEmpKey] = useState<string | null>(null);
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
+
+  const todayColRef = useRef<HTMLTableCellElement>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+
+  // Load day memos from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('handys-day-memos');
+      if (saved) setDayMemos(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (todayColRef.current && gridContainerRef.current) {
+      const container = gridContainerRef.current;
+      const cell = todayColRef.current;
+      const cellLeft = cell.offsetLeft;
+      const containerWidth = container.clientWidth;
+      container.scrollLeft = cellLeft - containerWidth / 3;
+    }
+  }, [branchCode, month, year]);
 
   const branchEmployees = useMemo(
     () => employees.filter(e => e.code === branchCode),
@@ -40,7 +104,6 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
   );
 
   const days = useMemo(() => getMonthInfo(year, month), [year, month]);
-
   const cacheKey = `${branchCode}-${month}-${year}`;
 
   const currentSchedule: BranchSchedule = useMemo(() => {
@@ -53,22 +116,60 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
   }, [branchCode, month, year, cacheKey, scheduleCache, employees]);
 
   const handleCellClick = (emp: Employee, dayIndex: number) => {
+    if (!canEdit) return; // Read-only mode
+    if (bulkMode) {
+      const empKey = `${emp.code}-${emp.num}`;
+      applyBulkShift(empKey, dayIndex);
+      return;
+    }
     const empKey = `${emp.code}-${emp.num}`;
     const cellData = (currentSchedule[empKey] && currentSchedule[empKey][dayIndex]) || {
-      shift: '' as const,
-      leaveRequest: false,
-      kakaoT: false,
-      memo: '',
+      shift: '' as const, leaveRequest: false, kakaoT: false, memo: '',
     };
     setModalInfo({
-      employee: emp,
-      dayIndex,
-      cellData,
-      date: days[dayIndex].date,
-      dowLabel: days[dayIndex].dowLabel,
-      holiday: days[dayIndex].holiday,
+      employee: emp, dayIndex, cellData,
+      date: days[dayIndex].date, dowLabel: days[dayIndex].dowLabel, holiday: days[dayIndex].holiday,
     });
     setModalOpen(true);
+  };
+
+  const applyBulkShift = useCallback((empKey: string, dayIndex: number) => {
+    setScheduleCache(prev => {
+      const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
+      const empSchedule = [...(branchSchedule[empKey] || [])];
+      empSchedule[dayIndex] = {
+        shift: bulkShift,
+        leaveRequest: bulkShift.startsWith('#') && bulkShift !== '#' ? true : empSchedule[dayIndex]?.leaveRequest || false,
+        kakaoT: empSchedule[dayIndex]?.kakaoT || false,
+        memo: empSchedule[dayIndex]?.memo || '',
+      };
+      branchSchedule[empKey] = empSchedule;
+      return { ...prev, [cacheKey]: branchSchedule };
+    });
+  }, [cacheKey, currentSchedule, bulkShift]);
+
+  const handleCellMouseDown = (emp: Employee, dayIndex: number) => {
+    if (!bulkMode || !canEdit) return;
+    const empKey = `${emp.code}-${emp.num}`;
+    setIsDragging(true);
+    setDragEmpKey(empKey);
+    setSelectedCells(new Set([`${empKey}-${dayIndex}`]));
+    applyBulkShift(empKey, dayIndex);
+  };
+
+  const handleCellMouseEnter = (emp: Employee, dayIndex: number) => {
+    if (!bulkMode || !isDragging || !canEdit) return;
+    const empKey = `${emp.code}-${emp.num}`;
+    if (empKey !== dragEmpKey) return;
+    const cellId = `${empKey}-${dayIndex}`;
+    if (!selectedCells.has(cellId)) {
+      setSelectedCells(prev => { const next = new Set(Array.from(prev)); next.add(cellId); return next; });
+      applyBulkShift(empKey, dayIndex);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (isDragging) { setIsDragging(false); setDragEmpKey(null); setSelectedCells(new Set()); }
   };
 
   const handleSave = (data: CellData) => {
@@ -83,16 +184,36 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     });
   };
 
+  const handleDelete = () => {
+    if (!modalInfo) return;
+    const empKey = `${modalInfo.employee.code}-${modalInfo.employee.num}`;
+    setScheduleCache(prev => {
+      const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
+      const empSchedule = [...(branchSchedule[empKey] || [])];
+      empSchedule[modalInfo.dayIndex] = { shift: '' as ShiftType, leaveRequest: false, kakaoT: false, memo: '' };
+      branchSchedule[empKey] = empSchedule;
+      return { ...prev, [cacheKey]: branchSchedule };
+    });
+  };
+
+  const saveDayMemo = (dayIdx: number, value: string) => {
+    const key = `${branchCode}-${month}-${dayIdx}`;
+    setDayMemos(prev => {
+      const updated = { ...prev, [key]: value };
+      localStorage.setItem('handys-day-memos', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const handleNameDoubleClick = (emp: Employee) => {
+    if (bulkMode || !canEdit) return;
     const empKey = `${emp.code}-${emp.num}`;
     setEditingName(empKey);
     setEditNameValue(emp.name);
   };
 
   const handleNameSave = (emp: Employee) => {
-    if (onEmployeeUpdate && editNameValue !== emp.name) {
-      onEmployeeUpdate(emp, 'name', editNameValue);
-    }
+    if (onEmployeeUpdate && editNameValue !== emp.name) onEmployeeUpdate(emp, 'name', editNameValue);
     setEditingName(null);
   };
 
@@ -101,23 +222,29 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     if (e.key === 'Escape') setEditingName(null);
   };
 
-  // Count today's working/off
   const today = new Date();
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === month;
   const todayIndex = isCurrentMonth ? today.getDate() - 1 : -1;
-  let workingCount = 0;
-  let offCount = 0;
-  if (todayIndex >= 0) {
-    branchEmployees.forEach(emp => {
-      const empKey = `${emp.code}-${emp.num}`;
-      const cell = currentSchedule[empKey]?.[todayIndex];
-      if (cell && cell.shift.startsWith('#')) {
-        offCount++;
-      } else {
-        workingCount++;
-      }
+
+  // Per-employee detailed counts
+  const getEmployeeCounts = (empKey: string): Record<string, number> => {
+    const empSchedule = currentSchedule[empKey] || [];
+    const c: Record<string, number> = { D6: 0, D9: 0, M: 0, E: 0, N: 0, '#': 0, leave: 0, work: 0, off: 0 };
+    empSchedule.forEach(cell => {
+      if (!cell || !cell.shift) return;
+      const s = cell.shift;
+      if (s === 'D6' || s === 'D6/반' || s === 'D6/반반') c.D6++;
+      else if (s === 'D9' || s === 'D9/반' || s === 'D9/반반' || s === 'D9/단') c.D9++;
+      else if (s === 'M' || s === 'M/반' || s === 'M/반반') c.M++;
+      else if (s === 'E' || s === 'E/반' || s === 'E/반반') c.E++;
+      else if (s === 'N' || s === 'N/반' || s === 'N/반반') c.N++;
+      else if (s === '파견') c.D9++;
+      if (s === '#') { c['#']++; c.off++; }
+      else if (s.startsWith('#(')) { c.leave++; c.off++; }
+      else { c.work++; }
     });
-  }
+    return c;
+  };
 
   const roleLabel = (role: string) => {
     switch (role) {
@@ -136,129 +263,187 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     );
   }
 
+  // Precompute all employee counts for summary panel
+  const allCounts = branchEmployees.map(emp => ({
+    emp,
+    counts: getEmployeeCounts(`${emp.code}-${emp.num}`),
+  }));
+  const totals: Record<string, number> = {};
+  summaryCols.forEach(col => {
+    totals[col.key] = allCounts.reduce((sum, { counts }) => sum + (counts[col.key] || 0), 0);
+  });
+
   return (
     <>
-      <div className="schedule-grid overflow-auto flex-1 bg-white">
-        <table className="schedule-table border-collapse text-xs min-w-max">
+      {/* Bulk mode toolbar (only when can edit) */}
+      {canEdit && <div className={`bg-white border-b px-4 py-2 flex items-center gap-3 shrink-0 transition-colors ${bulkMode ? 'border-blue-300 bg-blue-50/50' : 'border-gray-200'}`}>
+        <button
+          onClick={() => { setBulkMode(!bulkMode); setSelectedCells(new Set()); }}
+          className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors ${
+            bulkMode ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          {bulkMode ? '일괄입력 ON' : '일괄입력'}
+        </button>
+        {bulkMode && (
+          <>
+            <span className="text-xs text-gray-500">근무유형:</span>
+            <div className="flex gap-1 flex-wrap">
+              {bulkShiftOptions.map(opt => {
+                const style = getShiftStyle(opt.code);
+                return (
+                  <button
+                    key={opt.code}
+                    onClick={() => setBulkShift(opt.code)}
+                    className={`px-2 py-1 text-[10px] font-bold rounded border-2 transition-all ${
+                      bulkShift === opt.code
+                        ? `${style.bg} ${style.text} border-current shadow-sm scale-110`
+                        : `${style.bg} ${style.text} border-transparent opacity-60 hover:opacity-100`
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[10px] text-blue-500 ml-2">셀을 클릭하거나 드래그하여 일괄 입력</span>
+          </>
+        )}
+      </div>}
+
+      {/* ===== MAIN SCHEDULE GRID ===== */}
+      <div
+        ref={gridContainerRef}
+        className="schedule-grid overflow-auto flex-1 bg-white"
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
+        <table className={`schedule-table border-collapse text-xs min-w-max ${bulkMode ? 'select-none' : ''}`}>
           <thead>
             <tr>
-              <th className="bg-slate-600 text-white px-1 py-1.5 text-center font-semibold w-8 border-r border-slate-500">
-                No
-              </th>
-              <th className="bg-slate-600 text-white px-2 py-1.5 text-left font-semibold w-20 border-r border-slate-500">
-                이름
-              </th>
-              <th className="bg-slate-600 text-white px-1 py-1.5 text-center font-semibold w-12 border-r border-slate-500">
-                직책
-              </th>
+              <th className="bg-slate-700 text-white px-1 py-1.5 text-center font-semibold w-8 border-r border-slate-600">No</th>
+              <th className="bg-slate-700 text-white px-2 py-1.5 text-left font-semibold w-20 border-r border-slate-600">이름</th>
+              <th className="bg-slate-700 text-white px-1 py-1.5 text-center font-semibold w-12 border-r border-slate-600">직책</th>
               {days.map((day, i) => {
                 const isSat = day.dow === 6;
                 const isSun = day.dow === 0;
                 const isHoliday = !!day.holiday;
+                const isToday = i === todayIndex;
                 return (
                   <th
-                    key={i}
-                    className={`px-0 py-1 text-center font-medium w-10 min-w-[40px] border-r border-slate-500 ${
-                      isHoliday || isSun
-                        ? 'bg-red-800 text-red-100'
+                    key={`d${i}`}
+                    ref={isToday ? todayColRef : undefined}
+                    className={`px-0 py-1 text-center font-medium w-10 min-w-[40px] border-r ${
+                      isToday
+                        ? 'bg-red-600 text-white border-red-700 relative z-10'
+                        : isHoliday || isSun
+                        ? 'bg-red-800 text-red-100 border-slate-500'
                         : isSat
-                        ? 'bg-blue-800 text-blue-100'
-                        : 'bg-slate-600 text-white'
+                        ? 'bg-blue-800 text-blue-100 border-slate-500'
+                        : 'bg-slate-600 text-white border-slate-500'
                     }`}
-                    title={day.holiday || ''}
+                    title={isToday ? `오늘 ${day.date}일 (${day.dowLabel})${day.holiday ? ' - ' + day.holiday : ''}` : (day.holiday || '')}
                   >
-                    <div className="text-[10px] leading-tight">
+                    {isToday && (
+                      <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[7px] font-black px-1.5 py-px rounded-b leading-tight shadow-sm">
+                        TODAY
+                      </div>
+                    )}
+                    <div className="text-[10px] leading-tight mt-0.5">
                       {day.holiday ? (
-                        <span className="text-yellow-300">{day.dowLabel}</span>
+                        <span className={isToday ? 'text-white font-bold' : 'text-yellow-300'}>{day.dowLabel}</span>
                       ) : (
-                        day.dowLabel
+                        <span className={isToday ? 'font-bold' : ''}>{day.dowLabel}</span>
                       )}
                     </div>
-                    <div className="font-bold">{day.date}</div>
+                    <div className={`font-bold ${isToday ? 'text-lg leading-none' : ''}`}>{day.date}</div>
                   </th>
                 );
               })}
             </tr>
           </thead>
           <tbody>
-            {/* MEMO row */}
+            {/* MEMO row - editable */}
             <tr className="bg-yellow-50">
-              <td className="bg-yellow-50 border-r border-b border-gray-200 text-center text-gray-400 text-[10px]">
-              </td>
-              <td
-                colSpan={2}
-                className="bg-yellow-50 border-r border-b border-gray-200 px-2 py-1 text-yellow-700 font-semibold text-[10px]"
-              >
-                MEMO
-              </td>
-              {days.map((day, i) => (
-                <td
-                  key={i}
-                  className={`border-r border-b border-gray-200 px-0.5 py-1 text-center text-[10px] text-yellow-600 ${
-                    day.holiday || day.dow === 0 ? 'bg-red-50/50' : day.dow === 6 ? 'bg-blue-50/50' : 'bg-yellow-50'
+              <td className="bg-yellow-50 border-r border-b border-gray-200"></td>
+              <td colSpan={2} className="bg-yellow-50 border-r border-b border-gray-200 px-2 py-1 text-yellow-700 font-semibold text-[10px]">MEMO</td>
+              {days.map((day, i) => {
+                const isToday = i === todayIndex;
+                const memoKey = `${branchCode}-${month}-${i}`;
+                const memoVal = dayMemos[memoKey] || '';
+                const isEditingMemo = editingMemoIdx === i;
+                return (
+                  <td key={i} className={`border-r border-b border-gray-200 px-0 py-0 text-center text-[10px] ${
+                    isToday ? 'bg-red-100' : day.holiday || day.dow === 0 ? 'bg-red-50/50' : day.dow === 6 ? 'bg-blue-50/50' : 'bg-yellow-50'
                   }`}
-                >
-                  {day.holiday && (
-                    <span className="text-[8px] text-red-400 font-medium">{day.holiday}</span>
-                  )}
-                </td>
-              ))}
+                  onClick={() => {
+                    setEditingMemoIdx(i); setEditingMemoValue(memoVal);
+                  }}
+                  >
+                    {day.holiday && <div className="text-[7px] text-red-400 font-medium leading-tight">{day.holiday}</div>}
+                    {isEditingMemo ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        value={editingMemoValue}
+                        onChange={e => setEditingMemoValue(e.target.value)}
+                        onBlur={() => { saveDayMemo(i, editingMemoValue); setEditingMemoIdx(null); }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') { saveDayMemo(i, editingMemoValue); setEditingMemoIdx(null); }
+                          if (e.key === 'Escape') setEditingMemoIdx(null);
+                        }}
+                        className="w-full px-0.5 py-0 text-[9px] border-0 bg-yellow-100 focus:outline-none focus:bg-yellow-200 text-center"
+                      />
+                    ) : (
+                      memoVal && <div className="text-[8px] text-yellow-700 font-medium truncate px-0.5" title={memoVal}>{memoVal}</div>
+                    )}
+                  </td>
+                );
+              })}
             </tr>
+            {/* Employee rows */}
             {branchEmployees.map((emp, empIdx) => {
               const empKey = `${emp.code}-${emp.num}`;
               const empSchedule = currentSchedule[empKey] || [];
               const isEditing = editingName === empKey;
+              const rowBg = empIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50';
+              const cellBg = empIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
 
               return (
-                <tr
-                  key={empKey}
-                  className={`${empIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-blue-50/30`}
-                >
-                  {/* Row number */}
-                  <td className={`${empIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-r border-b border-gray-200 text-center text-gray-400 font-mono`}>
-                    {emp.num}
-                  </td>
-                  {/* Name - double click to edit */}
+                <tr key={empKey} className={`${rowBg} hover:bg-blue-50/30`}>
+                  <td className={`${cellBg} border-r border-b border-gray-200 text-center text-gray-400 font-mono`}>{emp.num}</td>
                   <td
-                    className={`${empIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-r border-b border-gray-200 px-2 py-1.5 font-medium text-gray-800 whitespace-nowrap`}
+                    className={`${cellBg} border-r border-b border-gray-200 px-2 py-1.5 font-medium text-gray-800 whitespace-nowrap`}
                     onDoubleClick={() => handleNameDoubleClick(emp)}
                     title="더블클릭하여 이름 수정"
                   >
                     {isEditing ? (
-                      <input
-                        autoFocus
-                        type="text"
-                        value={editNameValue}
+                      <input autoFocus type="text" value={editNameValue}
                         onChange={e => setEditNameValue(e.target.value)}
                         onBlur={() => handleNameSave(emp)}
                         onKeyDown={e => handleNameKeyDown(e, emp)}
                         className="w-full px-1 py-0 text-xs border border-blue-400 rounded focus:outline-none bg-blue-50"
                       />
                     ) : (
-                      <span className={emp.name ? '' : 'text-gray-300 italic'}>
-                        {emp.name || '(미정)'}
-                      </span>
+                      <span className={emp.name ? '' : 'text-gray-300 italic'}>{emp.name || '(미정)'}</span>
                     )}
                   </td>
-                  {/* Role */}
-                  <td className={`${empIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} border-r border-b border-gray-200 text-center py-1.5`}>
-                    <span
-                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                        emp.role === 'HM'
-                          ? 'bg-indigo-100 text-indigo-700'
-                          : emp.role === 'Lead'
-                          ? 'bg-rose-100 text-rose-700'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      {roleLabel(emp.role)}
-                    </span>
+                  <td className={`${cellBg} border-r border-b border-gray-200 text-center py-1.5`}>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                      emp.role === 'HM' ? 'bg-indigo-100 text-indigo-700' : emp.role === 'Lead' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-600'
+                    }`}>{roleLabel(emp.role)}</span>
                   </td>
-                  {/* Schedule cells */}
                   {days.map((day, dayIdx) => {
                     const cell = empSchedule[dayIdx];
+                    const isToday = dayIdx === todayIndex;
+                    const todayCls = isToday ? 'bg-red-50 border-l-[3px] border-r-[3px] border-red-400' : '';
+
                     if (!cell) return (
-                      <td key={dayIdx} className="border-r border-b border-gray-200 w-10 h-8"></td>
+                      <td key={dayIdx} className={`border-r border-b border-gray-200 w-10 h-8 ${todayCls}`}
+                        onClick={() => handleCellClick(emp, dayIdx)}
+                        onMouseDown={() => handleCellMouseDown(emp, dayIdx)}
+                        onMouseEnter={() => handleCellMouseEnter(emp, dayIdx)}
+                      ></td>
                     );
 
                     const style = getShiftStyle(cell.shift);
@@ -267,19 +452,19 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                     const isHoliday = !!day.holiday;
                     const hasIndicator = cell.leaveRequest || cell.kakaoT;
                     const hasMemo = cell.memo.length > 0;
-                    const isToday = dayIdx === todayIndex;
 
                     let bgOverride = '';
-                    if (isHoliday || isSun) bgOverride = 'bg-red-50/40';
-                    else if (isSat) bgOverride = 'bg-blue-50/40';
+                    if (!isToday) {
+                      if (isHoliday || isSun) bgOverride = 'bg-red-50/40';
+                      else if (isSat) bgOverride = 'bg-blue-50/40';
+                    }
 
                     return (
-                      <td
-                        key={dayIdx}
-                        className={`border-r border-b border-gray-200 p-0 relative ${bgOverride} ${
-                          isToday ? 'ring-2 ring-inset ring-blue-400/50' : ''
-                        }`}
-                        onClick={() => handleCellClick(emp, dayIdx)}
+                      <td key={dayIdx}
+                        className={`border-r border-b border-gray-200 p-0 relative ${isToday ? todayCls : bgOverride} ${bulkMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
+                        onClick={() => !isDragging && handleCellClick(emp, dayIdx)}
+                        onMouseDown={(e) => { e.preventDefault(); handleCellMouseDown(emp, dayIdx); }}
+                        onMouseEnter={() => handleCellMouseEnter(emp, dayIdx)}
                       >
                         <div
                           className={`shift-cell mx-auto my-0.5 w-9 h-7 flex items-center justify-center rounded text-[10px] font-bold relative ${style.bg} ${style.text}`}
@@ -292,9 +477,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                               {cell.kakaoT && <span className="dot-taxi" />}
                             </div>
                           )}
-                          {hasMemo && (
-                            <div className="absolute top-0 right-0.5 text-[8px] text-red-400">*</div>
-                          )}
+                          {hasMemo && <div className="absolute top-0 right-0.5 text-[8px] text-red-400">*</div>}
                         </div>
                       </td>
                     );
@@ -302,8 +485,90 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                 </tr>
               );
             })}
+            {/* Daily totals row */}
+            <tr className="bg-slate-100 font-semibold">
+              <td colSpan={3} className="border-r border-b border-gray-300 px-2 py-1.5 text-xs text-slate-600 text-right">일별 합계</td>
+              {days.map((day, dayIdx) => {
+                let dayWork = 0, dayOff = 0;
+                branchEmployees.forEach(emp => {
+                  const empKey = `${emp.code}-${emp.num}`;
+                  const cell = currentSchedule[empKey]?.[dayIdx];
+                  if (cell && cell.shift) {
+                    if (cell.shift === '#' || cell.shift.startsWith('#(')) dayOff++;
+                    else dayWork++;
+                  }
+                });
+                const isToday = dayIdx === todayIndex;
+                const isHoliday = !!day.holiday;
+                const isSun = day.dow === 0;
+                const isSat = day.dow === 6;
+                let bg = isToday ? 'bg-red-100' : isHoliday || isSun ? 'bg-red-50/30' : isSat ? 'bg-blue-50/30' : 'bg-slate-100';
+                return (
+                  <td key={dayIdx} className={`border-r border-b border-gray-300 text-center text-[9px] ${bg} px-0 py-1 ${isToday ? 'border-l-[3px] border-r-[3px] border-red-400' : ''}`}>
+                    <div className="text-blue-600">{dayWork}</div>
+                    <div className="text-gray-400">{dayOff}</div>
+                  </td>
+                );
+              })}
+            </tr>
           </tbody>
         </table>
+      </div>
+
+      {/* ===== MONTHLY SUMMARY PANEL (아래쪽 집계) ===== */}
+      <div className="shrink-0 border-t-2 border-slate-300 bg-slate-50">
+        <button
+          onClick={() => setShowSummary(!showSummary)}
+          className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+        >
+          <span>📊 {month}월 근무유형별 집계</span>
+          <span className={`transition-transform ${showSummary ? 'rotate-180' : ''}`}>▼</span>
+        </button>
+        {showSummary && (
+          <div className="overflow-auto max-h-[240px] px-2 pb-2">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr>
+                  <th className="bg-slate-700 text-white px-2 py-1.5 text-center font-semibold border-r border-slate-600 w-8 sticky top-0">No</th>
+                  <th className="bg-slate-700 text-white px-2 py-1.5 text-left font-semibold border-r border-slate-600 sticky top-0">이름</th>
+                  <th className="bg-slate-700 text-white px-2 py-1.5 text-center font-semibold border-r border-slate-600 w-12 sticky top-0">직책</th>
+                  {summaryCols.map(col => (
+                    <th key={col.key} className={`${col.hBg} text-white px-1 py-1.5 text-center font-bold border-r border-white/30 w-12 sticky top-0`}>
+                      {col.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {allCounts.map(({ emp, counts }, idx) => (
+                  <tr key={`${emp.code}-${emp.num}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <td className="border-r border-b border-gray-200 text-center text-gray-400 font-mono px-1 py-1">{emp.num}</td>
+                    <td className="border-r border-b border-gray-200 px-2 py-1 font-medium text-gray-800">{emp.name || '(미정)'}</td>
+                    <td className="border-r border-b border-gray-200 text-center py-1">
+                      <span className={`text-[10px] font-semibold px-1 py-0.5 rounded ${
+                        emp.role === 'HM' ? 'bg-indigo-100 text-indigo-700' : emp.role === 'Lead' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-600'
+                      }`}>{roleLabel(emp.role)}</span>
+                    </td>
+                    {summaryCols.map(col => (
+                      <td key={col.key} className={`${col.bg} ${col.text} border-r border-b border-gray-200 text-center font-bold py-1`}>
+                        {counts[col.key] || 0}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {/* Totals */}
+                <tr className="bg-slate-200 font-bold">
+                  <td colSpan={3} className="border-r border-b border-gray-300 px-2 py-1.5 text-right text-slate-700">합계</td>
+                  {summaryCols.map(col => (
+                    <td key={col.key} className={`${col.bg} ${col.text} border-r border-b border-gray-300 text-center py-1.5 text-sm`}>
+                      {totals[col.key] || 0}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Legend */}
@@ -316,9 +581,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
           { label: 'E', bg: 'bg-orange-100', text: 'text-orange-800' },
           { label: 'N', bg: 'bg-teal-100', text: 'text-teal-800' },
         ].map(item => (
-          <span key={item.label} className={`${item.bg} ${item.text} px-1.5 py-0.5 rounded font-bold`}>
-            {item.label}
-          </span>
+          <span key={item.label} className={`${item.bg} ${item.text} px-1.5 py-0.5 rounded font-bold`}>{item.label}</span>
         ))}
         <span className="text-gray-300">|</span>
         <span className="text-gray-400 font-medium">휴무:</span>
@@ -328,24 +591,14 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
           { label: '대체', bg: 'bg-slate-200', text: 'text-slate-600' },
           { label: '병가', bg: 'bg-red-100', text: 'text-red-600' },
         ].map(item => (
-          <span key={item.label} className={`${item.bg} ${item.text} px-1.5 py-0.5 rounded font-bold`}>
-            {item.label}
-          </span>
+          <span key={item.label} className={`${item.bg} ${item.text} px-1.5 py-0.5 rounded font-bold`}>{item.label}</span>
         ))}
         <span className="text-gray-300">|</span>
-        <span className="flex items-center gap-1">
-          <span className="dot-leave inline-block" /> 연차상신
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="dot-taxi inline-block" /> 카카오T
-        </span>
+        <span className="flex items-center gap-1"><span className="dot-leave inline-block" /> 연차상신</span>
+        <span className="flex items-center gap-1"><span className="dot-taxi inline-block" /> 카카오T</span>
         <span className="text-gray-300">|</span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 bg-red-50 border border-red-200 rounded-sm" /> 공휴일/일요일
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 bg-blue-50 border border-blue-200 rounded-sm" /> 토요일
-        </span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-red-50 border border-red-200 rounded-sm" /> 공휴일</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-red-100 border-2 border-red-400 rounded-sm" /> 오늘</span>
       </div>
 
       {/* Cell Modal */}
@@ -360,6 +613,9 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
           dowLabel={modalInfo.dowLabel}
           holiday={modalInfo.holiday}
           onSave={handleSave}
+          onDelete={handleDelete}
+          canEditLeave={canEditLeave}
+          canDelete={canDelete}
         />
       )}
     </>

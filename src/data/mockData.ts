@@ -409,67 +409,12 @@ export function generateScheduleData(
   const daysInMonth = new Date(year, month, 0).getDate();
   const schedule: Record<string, CellData[]> = {};
 
-  branchEmployees.forEach((emp, empIdx) => {
-    const rand = seededRandom(parseInt(branchCode) * 1000 + empIdx * 100 + month);
+  // Empty schedule — no mock data, staff will fill in themselves
+  branchEmployees.forEach((emp) => {
     const cells: CellData[] = [];
-
-    const isHM = emp.role === 'HM' || emp.role === 'Lead';
-    const shiftPool: ShiftType[] = isHM
-      ? ['D9', 'D9', 'D9', 'D9', 'D9', '#', '#']
-      : ['D6', 'D9', 'D9', 'E', 'M', 'N', '#'];
-
-    let consecutiveWork = 0;
-
     for (let d = 0; d < daysInMonth; d++) {
-      const r = rand();
-      let shift: ShiftType;
-
-      // Check if it's a holiday
-      const holiday = getHoliday(year, month, d + 1);
-
-      if (consecutiveWork >= 5) {
-        shift = '#';
-        consecutiveWork = 0;
-      } else if (holiday && rand() < 0.6) {
-        // Higher chance of off on holidays
-        shift = '#';
-        consecutiveWork = 0;
-      } else if (r < 0.15) {
-        shift = '#';
-        consecutiveWork = 0;
-      } else {
-        const idx = Math.floor(rand() * shiftPool.length);
-        shift = shiftPool[idx];
-        if (shift === '#') {
-          consecutiveWork = 0;
-        } else {
-          consecutiveWork++;
-        }
-      }
-
-      // Occasional half shifts
-      if (shift === 'D9' && rand() < 0.04) shift = 'D9/반';
-      if (shift === 'E' && rand() < 0.04) shift = 'E/반';
-      if (shift === 'D6' && rand() < 0.03) shift = 'D6/반';
-
-      // Occasional leave types
-      const isOff = shift.startsWith('#');
-      if (isOff && shift === '#' && rand() < 0.2) {
-        const leaveTypes: ShiftType[] = ['#(연차)', '#(대체)', '#(병가)'];
-        shift = leaveTypes[Math.floor(rand() * leaveTypes.length)];
-      }
-
-      const hasLeaveRequest = isOff && rand() < 0.3;
-      const hasKakaoT = !isOff && rand() < 0.15;
-
-      cells.push({
-        shift,
-        leaveRequest: hasLeaveRequest,
-        kakaoT: hasKakaoT,
-        memo: rand() < 0.03 ? '조퇴' : '',
-      });
+      cells.push({ shift: '' as ShiftType, leaveRequest: false, kakaoT: false, memo: '' });
     }
-
     schedule[`${emp.code}-${emp.num}`] = cells;
   });
 
