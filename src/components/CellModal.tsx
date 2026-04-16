@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CellData, ShiftType, shiftTypes, shiftDescriptions, getShiftStyle } from '@/data/mockData';
+import { CellData, ShiftType, shiftCategories, shiftDescriptions, getShiftStyle } from '@/data/mockData';
 
 interface CellModalProps {
   isOpen: boolean;
@@ -11,6 +11,7 @@ interface CellModalProps {
   date: number;
   month: number;
   dowLabel: string;
+  holiday?: string;
   onSave: (data: CellData) => void;
 }
 
@@ -22,12 +23,14 @@ export default function CellModal({
   date,
   month,
   dowLabel,
+  holiday,
   onSave,
 }: CellModalProps) {
   const [shift, setShift] = useState<ShiftType>(cellData.shift);
   const [leaveRequest, setLeaveRequest] = useState(cellData.leaveRequest);
   const [kakaoT, setKakaoT] = useState(cellData.kakaoT);
   const [memo, setMemo] = useState(cellData.memo);
+  const [activeTab, setActiveTab] = useState<'regular' | 'half' | 'quarter' | 'off' | 'special'>('regular');
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,6 +38,14 @@ export default function CellModal({
     setLeaveRequest(cellData.leaveRequest);
     setKakaoT(cellData.kakaoT);
     setMemo(cellData.memo);
+    // Set active tab based on current shift
+    if (cellData.shift) {
+      if (cellData.shift.includes('반반')) setActiveTab('quarter');
+      else if (cellData.shift.includes('/반') || cellData.shift === 'D9/단') setActiveTab('half');
+      else if (cellData.shift.startsWith('#')) setActiveTab('off');
+      else if (cellData.shift === '파견') setActiveTab('special');
+      else setActiveTab('regular');
+    }
   }, [cellData]);
 
   useEffect(() => {
@@ -54,7 +65,15 @@ export default function CellModal({
     onClose();
   };
 
-  const style = getShiftStyle(shift);
+  const tabs = [
+    { key: 'regular' as const, label: '정규근무' },
+    { key: 'half' as const, label: '반차' },
+    { key: 'quarter' as const, label: '반반차' },
+    { key: 'off' as const, label: '휴무/연차' },
+    { key: 'special' as const, label: '기타' },
+  ];
+
+  const currentShifts = shiftCategories[activeTab];
 
   return (
     <div
@@ -63,16 +82,19 @@ export default function CellModal({
     >
       <div
         ref={modalRef}
-        className="modal-content bg-white rounded-xl shadow-2xl w-80 overflow-hidden"
+        className="modal-content bg-white rounded-xl shadow-2xl w-[360px] overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="bg-slate-700 text-white px-4 py-3 flex items-center justify-between">
           <div>
-            <span className="font-bold">{employeeName}</span>
+            <span className="font-bold">{employeeName || '(미정)'}</span>
             <span className="text-slate-300 text-sm ml-2">
               {month}/{date} ({dowLabel})
             </span>
+            {holiday && (
+              <span className="ml-2 text-xs bg-red-500/80 px-1.5 py-0.5 rounded">{holiday}</span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -82,29 +104,56 @@ export default function CellModal({
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
-          {/* Shift selector */}
+        <div className="p-4 space-y-3">
+          {/* Shift category tabs */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1.5">
               근무 유형
             </label>
-            <div className="grid grid-cols-5 gap-1.5">
-              {shiftTypes.filter(s => s !== '').map(s => {
-                const sStyle = getShiftStyle(s);
+            <div className="flex gap-1 mb-2">
+              {tabs.map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-2 py-1 text-[10px] font-semibold rounded transition-colors ${
+                    activeTab === tab.key
+                      ? 'bg-slate-700 text-white'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className={`grid gap-1.5 ${activeTab === 'off' ? 'grid-cols-4' : 'grid-cols-5'}`}>
+              {currentShifts.map(s => {
+                const sStyle = getShiftStyle(s.code);
                 return (
                   <button
-                    key={s}
-                    onClick={() => setShift(s)}
-                    className={`px-1 py-1.5 text-xs font-bold rounded border-2 transition-all ${
-                      shift === s
+                    key={s.code}
+                    onClick={() => setShift(s.code)}
+                    title={s.desc}
+                    className={`px-1 py-1.5 text-[10px] font-bold rounded border-2 transition-all ${
+                      shift === s.code
                         ? `${sStyle.bg} ${sStyle.text} border-current shadow-sm`
                         : `${sStyle.bg} ${sStyle.text} border-transparent opacity-60 hover:opacity-100`
                     }`}
                   >
-                    {s}
+                    {s.label}
                   </button>
                 );
               })}
+              {/* Clear button */}
+              <button
+                onClick={() => setShift('' as ShiftType)}
+                className={`px-1 py-1.5 text-[10px] font-bold rounded border-2 transition-all ${
+                  shift === ''
+                    ? 'bg-white text-gray-600 border-gray-400 shadow-sm'
+                    : 'bg-gray-50 text-gray-400 border-transparent opacity-60 hover:opacity-100'
+                }`}
+              >
+                빈칸
+              </button>
             </div>
             {shift && (
               <p className="text-xs text-gray-400 mt-1">{shiftDescriptions[shift] || ''}</p>

@@ -1,44 +1,95 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import BranchSidebar from '@/components/BranchSidebar';
 import Header from '@/components/Header';
 import MonthSelector from '@/components/MonthSelector';
 import ScheduleGrid from '@/components/ScheduleGrid';
-import { branches, employees, generateScheduleData } from '@/data/mockData';
+import EmployeeModal from '@/components/EmployeeModal';
+import {
+  branches,
+  defaultEmployees,
+  getEmployees,
+  saveEmployees,
+  generateScheduleData,
+  Employee,
+} from '@/data/mockData';
 
 export default function Home() {
-  const [selectedBranch, setSelectedBranch] = useState('02'); // Default to 서면
-  const [selectedMonth, setSelectedMonth] = useState(4); // April 2026
+  const [selectedBranch, setSelectedBranch] = useState('02');
+  const [selectedMonth, setSelectedMonth] = useState(4);
+  const [employeeModalOpen, setEmployeeModalOpen] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>(defaultEmployees);
+  const [hydrated, setHydrated] = useState(false);
   const year = 2026;
+
+  // Load employees from localStorage on mount (override defaults if saved data exists)
+  useEffect(() => {
+    setEmployees(getEmployees());
+    setHydrated(true);
+  }, []);
 
   const branch = branches.find(b => b.code === selectedBranch);
   const branchName = branch?.name || '';
 
-  // Calculate daily summary stats (for "today" April 16)
-  const branchEmployees = employees.filter(e => e.code === selectedBranch);
-  const scheduleData = useMemo(
-    () => generateScheduleData(selectedBranch, selectedMonth, year),
-    [selectedBranch, selectedMonth]
+  const branchEmployees = useMemo(
+    () => employees.filter(e => e.code === selectedBranch),
+    [employees, selectedBranch]
   );
 
-  const todayIndex = 15; // April 16 = index 15
+  const scheduleData = useMemo(
+    () => generateScheduleData(selectedBranch, selectedMonth, year, employees),
+    [selectedBranch, selectedMonth, employees]
+  );
+
+  // Calculate daily stats for today
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === selectedMonth;
+  const todayIndex = isCurrentMonth ? today.getDate() - 1 : 0;
   let workingCount = 0;
   let offCount = 0;
   branchEmployees.forEach(emp => {
     const empKey = `${emp.code}-${emp.num}`;
     const cell = scheduleData[empKey]?.[todayIndex];
-    if (cell && cell.shift === '#') {
+    if (cell && cell.shift.startsWith('#')) {
       offCount++;
     } else {
       workingCount++;
     }
   });
 
-  // Check if current date is within edit period (20th-24th)
-  const today = new Date();
   const currentDay = today.getDate();
   const isEditPeriod = currentDay >= 20 && currentDay <= 24;
+
+  // Employee management callbacks
+  const handleEmployeeUpdate = useCallback((emp: Employee, field: string, value: string) => {
+    setEmployees(prev => {
+      const updated = prev.map(e => {
+        if (e.code === emp.code && e.num === emp.num) {
+          return { ...e, [field]: value };
+        }
+        return e;
+      });
+      saveEmployees(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleEmployeeAdd = useCallback((newEmp: Employee) => {
+    setEmployees(prev => {
+      const updated = [...prev, newEmp];
+      saveEmployees(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleEmployeeDelete = useCallback((emp: Employee) => {
+    setEmployees(prev => {
+      const updated = prev.filter(e => !(e.code === emp.code && e.num === emp.num));
+      saveEmployees(updated);
+      return updated;
+    });
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -59,7 +110,9 @@ export default function Home() {
           workingCount={workingCount}
           offCount={offCount}
           totalCount={branchEmployees.length}
+          branchTo={branch?.to}
           isEditPeriod={isEditPeriod}
+          onManageEmployees={() => setEmployeeModalOpen(true)}
         />
 
         {/* Month selector bar */}
@@ -69,7 +122,7 @@ export default function Home() {
             onSelectMonth={setSelectedMonth}
           />
           <div className="text-xs text-gray-400">
-            셀을 클릭하여 상세 정보를 확인/편집하세요
+            셀 클릭: 스케줄 편집 | 이름 더블클릭: 이름 수정
           </div>
         </div>
 
@@ -78,8 +131,21 @@ export default function Home() {
           branchCode={selectedBranch}
           month={selectedMonth}
           year={year}
+          employees={employees}
+          onEmployeeUpdate={handleEmployeeUpdate}
         />
       </div>
+
+      {/* Employee management modal */}
+      <EmployeeModal
+        isOpen={employeeModalOpen}
+        onClose={() => setEmployeeModalOpen(false)}
+        branchCode={selectedBranch}
+        employees={employees}
+        onAdd={handleEmployeeAdd}
+        onUpdate={handleEmployeeUpdate}
+        onDelete={handleEmployeeDelete}
+      />
     </div>
   );
 }

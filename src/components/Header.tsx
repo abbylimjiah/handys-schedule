@@ -10,7 +10,9 @@ interface HeaderProps {
   workingCount: number;
   offCount: number;
   totalCount: number;
+  branchTo?: number;
   isEditPeriod: boolean;
+  onManageEmployees?: () => void;
 }
 
 export default function Header({
@@ -21,7 +23,9 @@ export default function Header({
   workingCount,
   offCount,
   totalCount,
+  branchTo,
   isEditPeriod,
+  onManageEmployees,
 }: HeaderProps) {
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shadow-sm">
@@ -35,9 +39,9 @@ export default function Header({
         </span>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 flex-wrap">
         {/* Summary stats */}
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-2 text-sm">
           <span className="px-2 py-1 rounded bg-blue-50 text-blue-700 font-medium">
             근무 {workingCount}명
           </span>
@@ -46,6 +50,9 @@ export default function Header({
           </span>
           <span className="px-2 py-1 rounded bg-slate-100 text-slate-700 font-medium">
             총 {totalCount}명
+            {branchTo && (
+              <span className="text-slate-400 ml-1">/ TO {branchTo}</span>
+            )}
           </span>
         </div>
 
@@ -60,13 +67,21 @@ export default function Header({
           </div>
         )}
 
-        {/* Export buttons */}
+        {/* Action buttons */}
         <div className="flex gap-2">
+          {onManageEmployees && (
+            <button
+              onClick={onManageEmployees}
+              className="px-3 py-1.5 text-xs font-medium rounded bg-slate-700 text-white hover:bg-slate-600 transition-colors"
+            >
+              인원 관리
+            </button>
+          )}
           <button className="px-3 py-1.5 text-xs font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors">
-            아마란스 엑셀 다운로드
+            아마란스 엑셀
           </button>
           <button className="px-3 py-1.5 text-xs font-medium rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors">
-            인원별 엑셀 다운로드
+            인원별 엑셀
           </button>
         </div>
       </div>
