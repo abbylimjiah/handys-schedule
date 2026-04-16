@@ -12,9 +12,22 @@ export interface AdminSettings {
   grantedEditors: string[];
 }
 
-const MASTER_PASSWORD = 'handys2026';
+const DEFAULT_MASTER_PASSWORD = 'handys2026';
 const AUTH_KEY = 'handys-auth';
 const ADMIN_KEY = 'handys-admin-settings';
+const PASSWORD_KEY = 'handys-master-password';
+
+// Master password (localStorage에 저장, 없으면 기본값)
+export function getMasterPassword(): string {
+  if (typeof window === 'undefined') return DEFAULT_MASTER_PASSWORD;
+  return localStorage.getItem(PASSWORD_KEY) || DEFAULT_MASTER_PASSWORD;
+}
+
+export function setMasterPassword(newPassword: string): boolean {
+  if (!newPassword || newPassword.length < 4) return false;
+  localStorage.setItem(PASSWORD_KEY, newPassword);
+  return true;
+}
 
 // Admin settings
 export function getAdminSettings(): AdminSettings {
@@ -32,7 +45,7 @@ export function saveAdminSettings(settings: AdminSettings) {
 
 // Login
 export function loginMaster(password: string): CurrentUser | null {
-  if (password !== MASTER_PASSWORD) return null;
+  if (password !== getMasterPassword()) return null;
   const user: CurrentUser = { name: 'Abby', role: 'master' };
   localStorage.setItem(AUTH_KEY, JSON.stringify(user));
   return user;
