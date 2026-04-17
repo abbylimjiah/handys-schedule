@@ -88,6 +88,41 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     } catch {}
   }, []);
 
+  // Helper: localStorage key for schedule
+  const scheduleStorageKey = (bCode: string, yr: number, mo: number) =>
+    `handys-schedule-${bCode}-${yr}-${mo}`;
+
+  // Save schedule to localStorage
+  const persistSchedule = useCallback((bCode: string, yr: number, mo: number, schedule: BranchSchedule) => {
+    try {
+      localStorage.setItem(scheduleStorageKey(bCode, yr, mo), JSON.stringify(schedule));
+    } catch (e) {
+      console.error('Failed to save schedule:', e);
+    }
+  }, []);
+
+  // Load all cached schedules on mount (for any branch/month user visited before)
+  useEffect(() => {
+    try {
+      const loaded: Record<string, BranchSchedule> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('handys-schedule-') && !k.startsWith('handys-schedule-employees')) {
+          const parts = k.replace('handys-schedule-', '').split('-');
+          if (parts.length === 3) {
+            const [bc, yr, mo] = parts;
+            const cKey = `${bc}-${mo}-${yr}`;
+            const val = localStorage.getItem(k);
+            if (val) loaded[cKey] = JSON.parse(val);
+          }
+        }
+      }
+      if (Object.keys(loaded).length > 0) setScheduleCache(loaded);
+    } catch (e) {
+      console.error('Failed to load schedules:', e);
+    }
+  }, []);
+
   useEffect(() => {
     if (todayColRef.current && gridContainerRef.current) {
       const container = gridContainerRef.current;
@@ -148,9 +183,10 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
         };
       }
       branchSchedule[empKey] = empSchedule;
+      persistSchedule(branchCode, year, month, branchSchedule);
       return { ...prev, [cacheKey]: branchSchedule };
     });
-  }, [cacheKey, currentSchedule, bulkShift]);
+  }, [cacheKey, currentSchedule, bulkShift, persistSchedule, branchCode, year, month]);
 
   const handleCellMouseDown = (emp: Employee, dayIndex: number) => {
     if (!bulkMode || !canEdit) return;
@@ -184,6 +220,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
       const empSchedule = [...(branchSchedule[empKey] || [])];
       empSchedule[modalInfo.dayIndex] = data;
       branchSchedule[empKey] = empSchedule;
+      persistSchedule(branchCode, year, month, branchSchedule);
       return { ...prev, [cacheKey]: branchSchedule };
     });
   };
@@ -196,6 +233,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
       const empSchedule = [...(branchSchedule[empKey] || [])];
       empSchedule[modalInfo.dayIndex] = { shift: '' as ShiftType, leaveRequest: false, kakaoT: false, memo: '' };
       branchSchedule[empKey] = empSchedule;
+      persistSchedule(branchCode, year, month, branchSchedule);
       return { ...prev, [cacheKey]: branchSchedule };
     });
   };
