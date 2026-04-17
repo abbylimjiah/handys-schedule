@@ -484,9 +484,9 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
         <table className={`schedule-table border-collapse text-xs min-w-max ${bulkMode ? 'select-none' : ''}`}>
           <thead>
             <tr>
-              <th className="bg-slate-700 text-white px-1 py-1.5 text-center font-semibold w-8 border-r border-slate-600">No</th>
-              <th className="bg-slate-700 text-white px-2 py-1.5 text-left font-semibold w-20 border-r border-slate-600">이름</th>
-              <th className="bg-slate-700 text-white px-1 py-1.5 text-center font-semibold w-12 border-r border-slate-600">직책</th>
+              <th className="bg-slate-700 text-white px-1 py-1.5 text-center font-semibold w-8 border-r border-slate-600 sticky top-0 left-0 z-40">No</th>
+              <th className="bg-slate-700 text-white px-2 py-1.5 text-left font-semibold w-20 border-r border-slate-600 sticky top-0 z-40" style={{left: '32px'}}>이름</th>
+              <th className="bg-slate-700 text-white px-1 py-1.5 text-center font-semibold w-12 border-r border-slate-600 sticky top-0 z-40" style={{left: '112px'}}>직책</th>
               {days.map((day, i) => {
                 const isSat = day.dow === 6;
                 const isSun = day.dow === 0;
@@ -496,9 +496,9 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                   <th
                     key={`d${i}`}
                     ref={isToday ? todayColRef : undefined}
-                    className={`px-0 py-1 text-center font-medium w-10 min-w-[40px] border-r ${
+                    className={`px-0 py-1 text-center font-medium w-10 min-w-[40px] border-r sticky top-0 z-30 ${
                       isToday
-                        ? 'bg-red-600 text-white border-red-700 relative z-10'
+                        ? 'bg-red-600 text-white border-red-700 relative'
                         : isHoliday || isSun
                         ? 'bg-red-800 text-red-100 border-slate-500'
                         : isSat
@@ -528,8 +528,9 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
           <tbody>
             {/* 공휴일 행 */}
             <tr className="bg-red-50/70">
-              <td className="bg-red-50/70 border-r border-b border-gray-200"></td>
-              <td colSpan={2} className="bg-red-50/70 border-r border-b border-gray-200 px-2 py-1 text-red-500 font-semibold text-[10px]">공휴일</td>
+              <td className="bg-red-50 border-r border-b border-gray-200 sticky left-0 z-20"></td>
+              <td className="bg-red-50 border-r border-b border-gray-200 px-2 py-1 text-red-500 font-semibold text-[10px] sticky z-20" style={{left: '32px'}}>공휴일</td>
+              <td className="bg-red-50 border-r border-b border-gray-200 sticky z-20" style={{left: '112px'}}></td>
               {days.map((day, i) => {
                 const isToday = i === todayIndex;
                 return (
@@ -543,8 +544,9 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
             </tr>
             {/* MEMO row - editable */}
             <tr className="bg-yellow-100 border-y-2 border-yellow-300">
-              <td className="bg-yellow-100 border-r border-b border-gray-200"></td>
-              <td colSpan={2} className="bg-yellow-200 border-r border-b border-gray-200 px-2 py-1.5 text-yellow-800 font-bold text-[11px]">📝 MEMO</td>
+              <td className="bg-yellow-100 border-r border-b border-gray-200 sticky left-0 z-20"></td>
+              <td className="bg-yellow-200 border-r border-b border-gray-200 px-2 py-1.5 text-yellow-800 font-bold text-[11px] sticky z-20" style={{left: '32px'}}>📝 MEMO</td>
+              <td className="bg-yellow-200 border-r border-b border-gray-200 sticky z-20" style={{left: '112px'}}></td>
               {days.map((day, i) => {
                 const isToday = i === todayIndex;
                 const memoKey = `${branchCode}-${month}-${i}`;
@@ -588,9 +590,10 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
 
               return (
                 <tr key={empKey} className={`${rowBg} hover:bg-blue-50/30`}>
-                  <td className={`${cellBg} border-r border-b border-gray-200 text-center text-gray-400 font-mono`}>{emp.num}</td>
+                  <td className={`${cellBg} border-r border-b border-gray-200 text-center text-gray-400 font-mono sticky left-0 z-10`}>{emp.num}</td>
                   <td
-                    className={`${cellBg} border-r border-b border-gray-200 px-2 py-1.5 font-medium text-gray-800 whitespace-nowrap group`}
+                    className={`${cellBg} border-r border-b border-gray-200 px-2 py-1.5 font-medium text-gray-800 whitespace-nowrap group sticky z-10`}
+                    style={{left: '32px'}}
                     onDoubleClick={() => handleNameDoubleClick(emp)}
                     title="더블클릭하여 이름 수정"
                   >
@@ -638,7 +641,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                       </div>
                     )}
                   </td>
-                  <td className={`${cellBg} border-r border-b border-gray-200 text-center py-1.5`}>
+                  <td className={`${cellBg} border-r border-b border-gray-200 text-center py-1.5 sticky z-10`} style={{left: '112px'}}>
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                       emp.role === 'HM' ? 'bg-indigo-100 text-indigo-700' : emp.role === 'Lead' ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-600'
                     }`}>{roleLabel(emp.role)}</span>
@@ -695,9 +698,11 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                 </tr>
               );
             })}
-            {/* Daily totals row */}
+            {/* Daily totals row - 하단 고정 */}
             <tr className="bg-slate-100 font-semibold">
-              <td colSpan={3} className="border-r border-b border-gray-300 px-2 py-1.5 text-xs text-slate-600 text-right">일별 합계</td>
+              <td className="bg-slate-100 border-r border-b border-gray-300 sticky bottom-0 left-0 z-30"></td>
+              <td className="bg-slate-100 border-r border-b border-gray-300 sticky bottom-0 z-30" style={{left: '32px'}}></td>
+              <td className="bg-slate-100 border-r border-b border-gray-300 px-2 py-1.5 text-xs text-slate-600 text-right sticky bottom-0 z-30" style={{left: '112px'}}>일별 합계</td>
               {days.map((day, dayIdx) => {
                 let dayWork = 0, dayOff = 0;
                 branchEmployees.forEach(emp => {
@@ -714,7 +719,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                 const isSat = day.dow === 6;
                 let bg = isToday ? 'bg-red-100' : isHoliday || isSun ? 'bg-red-50/30' : isSat ? 'bg-blue-50/30' : 'bg-slate-100';
                 return (
-                  <td key={dayIdx} className={`border-r border-b border-gray-300 text-center text-[9px] ${bg} px-0 py-1 ${isToday ? 'border-l-[3px] border-r-[3px] border-red-400' : ''}`}>
+                  <td key={dayIdx} className={`border-r border-b border-gray-300 text-center text-[9px] ${bg} px-0 py-1 sticky bottom-0 z-20 ${isToday ? 'border-l-[3px] border-r-[3px] border-red-400' : ''}`}>
                     <div className="text-blue-600">{dayWork}</div>
                     <div className="text-gray-400">{dayOff}</div>
                   </td>
