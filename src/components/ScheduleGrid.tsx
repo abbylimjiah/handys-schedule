@@ -397,9 +397,9 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
               })}
             </tr>
             {/* MEMO row - editable */}
-            <tr className="bg-yellow-50">
-              <td className="bg-yellow-50 border-r border-b border-gray-200"></td>
-              <td colSpan={2} className="bg-yellow-50 border-r border-b border-gray-200 px-2 py-1 text-yellow-700 font-semibold text-[10px]">MEMO</td>
+            <tr className="bg-yellow-100 border-y-2 border-yellow-300">
+              <td className="bg-yellow-100 border-r border-b border-gray-200"></td>
+              <td colSpan={2} className="bg-yellow-200 border-r border-b border-gray-200 px-2 py-1.5 text-yellow-800 font-bold text-[11px]">📝 MEMO</td>
               {days.map((day, i) => {
                 const isToday = i === todayIndex;
                 const memoKey = `${branchCode}-${month}-${i}`;
