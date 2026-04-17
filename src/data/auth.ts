@@ -87,11 +87,16 @@ export function isValidCompanyEmail(email: string): boolean {
   return lower.endsWith(`@${COMPANY_DOMAIN}`);
 }
 
-// Login
+// Login - 기존 로그인된 사용자를 마스터로 승격 (이름 유지)
 export function loginMaster(password: string): CurrentUser | null {
   if (password !== getMasterPassword()) return null;
   const existing = getCurrentUser();
-  const user: CurrentUser = { name: 'Abby', email: existing?.email || 'abby@handys.co.kr', role: 'master' };
+  // 기존 사용자 정보 유지하면서 role만 master로 변경
+  const user: CurrentUser = {
+    name: existing?.name || 'Abby',
+    email: existing?.email || 'abby@handys.co.kr',
+    role: 'master',
+  };
   localStorage.setItem(AUTH_KEY, JSON.stringify(user));
   return user;
 }
