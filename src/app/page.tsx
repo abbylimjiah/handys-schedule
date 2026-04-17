@@ -29,6 +29,7 @@ import {
   getHMBranch,
 } from '@/data/auth';
 import { downloadAmaranthExcel, downloadAllBranchesAmaranth } from '@/data/amaranth';
+import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib/employeesApi';
 
 export default function Home() {
   const [selectedBranch, setSelectedBranch] = useState('02');
@@ -42,9 +43,20 @@ export default function Home() {
   const year = 2026;
 
   useEffect(() => {
+    // 초기값은 localStorage로 빠르게 설정
     setEmployees(getEmployees());
     setCurrentUser(getCurrentUser());
     setHydrated(true);
+
+    // Supabase에서 최신 데이터 불러오기
+    (async () => {
+      const emps = await fetchEmployees();
+      if (emps && emps.length > 0) setEmployees(emps);
+    })();
+
+    // 실시간 구독: 다른 사람이 직원 정보 수정하면 자동 반영
+    const unsubscribe = subscribeToEmployees(emps => setEmployees(emps));
+    return unsubscribe;
   }, []);
 
   const branch = branches.find(b => b.code === selectedBranch);
@@ -75,16 +87,27 @@ export default function Home() {
     setEmployees(prev => {
       const updated = prev.map(e => e.code === emp.code && e.num === emp.num ? { ...e, [field]: value } : e);
       saveEmployees(updated);
+      saveBranchEmployees(emp.code, updated);
       return updated;
     });
   }, []);
 
   const handleEmployeeAdd = useCallback((newEmp: Employee) => {
-    setEmployees(prev => { const updated = [...prev, newEmp]; saveEmployees(updated); return updated; });
+    setEmployees(prev => {
+      const updated = [...prev, newEmp];
+      saveEmployees(updated);
+      saveBranchEmployees(newEmp.code, updated);
+      return updated;
+    });
   }, []);
 
   const handleEmployeeDelete = useCallback((emp: Employee) => {
-    setEmployees(prev => { const updated = prev.filter(e => !(e.code === emp.code && e.num === emp.num)); saveEmployees(updated); return updated; });
+    setEmployees(prev => {
+      const updated = prev.filter(e => !(e.code === emp.code && e.num === emp.num));
+      saveEmployees(updated);
+      saveBranchEmployees(emp.code, updated);
+      return updated;
+    });
   }, []);
 
   const handleEmployeeRenumber = useCallback((branchCode: string) => {
@@ -94,6 +117,7 @@ export default function Home() {
       const renumbered = branchEmps.map((emp, idx) => ({ ...emp, num: idx + 1 }));
       const updated = [...others, ...renumbered];
       saveEmployees(updated);
+      saveBranchEmployees(branchCode, updated);
       return updated;
     });
   }, []);

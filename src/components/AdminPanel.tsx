@@ -9,6 +9,7 @@ import {
 } from '@/data/auth';
 import { Employee, branches } from '@/data/mockData';
 import { employeeRoster } from '@/data/amaranth';
+import { fetchManagedUsers, bulkSaveManagedUsers, subscribeToManagedUsers } from '@/lib/usersApi';
 
 interface AdminPanelProps {
   isOpen: boolean;
@@ -51,6 +52,25 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
       setEditingUser(null);
       setShowAddForm(false);
       setSearch('');
+
+      // Supabase에서 최신 사용자 불러오기
+      (async () => {
+        const fetched = await fetchManagedUsers();
+        if (fetched && fetched.length > 0) {
+          setUsers(fetched);
+          saveManagedUsers(fetched); // localStorage 싱크
+        } else if (managed.length > 0) {
+          // 최초 1회 기본 데이터 서버 업로드
+          bulkSaveManagedUsers(managed);
+        }
+      })();
+
+      // 실시간 구독
+      const unsub = subscribeToManagedUsers(users => {
+        setUsers(users);
+        saveManagedUsers(users);
+      });
+      return unsub;
     }
   }, [isOpen, employees]);
 
@@ -96,6 +116,7 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
     );
     setUsers(updated);
     saveManagedUsers(updated);
+    bulkSaveManagedUsers(updated); // Supabase 동기화
   };
 
   const openEditModal = (user: ManagedUser) => {
@@ -118,6 +139,7 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
       const updated = [...users, newUser];
       setUsers(updated);
       saveManagedUsers(updated);
+      bulkSaveManagedUsers(updated); // Supabase 동기화
     } else {
       const updated = users.map(u =>
         u.englishName === editingUser.englishName ? {
@@ -131,6 +153,7 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
       );
       setUsers(updated);
       saveManagedUsers(updated);
+      bulkSaveManagedUsers(updated); // Supabase 동기화
     }
     setEditingUser(null);
   };

@@ -13,6 +13,7 @@ import {
 } from '@/data/mockData';
 import CellModal from './CellModal';
 import { loadSchedule, saveSchedule, subscribeToSchedule, loadAllSchedules, BranchSchedule as ApiBranchSchedule } from '@/lib/scheduleApi';
+import { fetchAllMemos, saveDayMemo as saveMemoApi, subscribeToMemos } from '@/lib/memosApi';
 import { getCurrentUser } from '@/data/auth';
 
 interface ScheduleGridProps {
@@ -82,12 +83,18 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
   const todayColRef = useRef<HTMLTableCellElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load day memos from localStorage
+  // Load day memos from Supabase + subscribe
   useEffect(() => {
     try {
       const saved = localStorage.getItem('handys-day-memos');
       if (saved) setDayMemos(JSON.parse(saved));
     } catch {}
+    (async () => {
+      const memos = await fetchAllMemos();
+      setDayMemos(memos);
+    })();
+    const unsub = subscribeToMemos(memos => setDayMemos(memos));
+    return unsub;
   }, []);
 
   // Save schedule to Supabase + localStorage
@@ -241,11 +248,9 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
 
   const saveDayMemo = (dayIdx: number, value: string) => {
     const key = `${branchCode}-${month}-${dayIdx}`;
-    setDayMemos(prev => {
-      const updated = { ...prev, [key]: value };
-      localStorage.setItem('handys-day-memos', JSON.stringify(updated));
-      return updated;
-    });
+    setDayMemos(prev => ({ ...prev, [key]: value }));
+    // Supabase + localStorage 동시 저장
+    saveMemoApi(branchCode, year, month, dayIdx, value);
   };
 
   const handleNameDoubleClick = (emp: Employee) => {
