@@ -11,6 +11,7 @@ interface EmployeeModalProps {
   onAdd: (employee: Employee) => void;
   onUpdate: (employee: Employee, field: string, value: string) => void;
   onDelete: (employee: Employee) => void;
+  onRenumber?: (branchCode: string) => void;
 }
 
 export default function EmployeeModal({
@@ -21,6 +22,7 @@ export default function EmployeeModal({
   onAdd,
   onUpdate,
   onDelete,
+  onRenumber,
 }: EmployeeModalProps) {
   const [editingCell, setEditingCell] = useState<{ empKey: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -30,7 +32,7 @@ export default function EmployeeModal({
   const [newHireDate, setNewHireDate] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  const branchEmployees = employees.filter(e => e.code === branchCode);
+  const branchEmployees = employees.filter(e => e.code === branchCode).sort((a, b) => a.num - b.num);
   const branch = branches.find(b => b.code === branchCode);
 
   useEffect(() => {
@@ -115,9 +117,24 @@ export default function EmployeeModal({
               </span>
             )}
           </div>
-          <button onClick={onClose} className="text-slate-300 hover:text-white text-lg">
-            &times;
-          </button>
+          <div className="flex items-center gap-2">
+            {onRenumber && branchEmployees.length > 0 && (
+              <button
+                onClick={() => {
+                  if (confirm('직원 순서를 1, 2, 3... 순으로 재정렬합니다. 계속하시겠습니까?')) {
+                    onRenumber(branchCode);
+                  }
+                }}
+                className="text-xs bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded"
+                title="직원 번호를 1부터 순차 재정렬"
+              >
+                🔢 순서 정리
+              </button>
+            )}
+            <button onClick={onClose} className="text-slate-300 hover:text-white text-lg">
+              &times;
+            </button>
+          </div>
         </div>
 
         {/* Employee list */}

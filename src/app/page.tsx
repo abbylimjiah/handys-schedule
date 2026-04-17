@@ -87,6 +87,17 @@ export default function Home() {
     setEmployees(prev => { const updated = prev.filter(e => !(e.code === emp.code && e.num === emp.num)); saveEmployees(updated); return updated; });
   }, []);
 
+  const handleEmployeeRenumber = useCallback((branchCode: string) => {
+    setEmployees(prev => {
+      const branchEmps = prev.filter(e => e.code === branchCode).sort((a, b) => a.num - b.num);
+      const others = prev.filter(e => e.code !== branchCode);
+      const renumbered = branchEmps.map((emp, idx) => ({ ...emp, num: idx + 1 }));
+      const updated = [...others, ...renumbered];
+      saveEmployees(updated);
+      return updated;
+    });
+  }, []);
+
   const handleLogout = () => { logout(); setCurrentUser(null); };
 
   if (!hydrated) return null;
@@ -172,6 +183,7 @@ export default function Home() {
           onAdd={handleEmployeeAdd}
           onUpdate={handleEmployeeUpdate}
           onDelete={handleEmployeeDelete}
+          onRenumber={handleEmployeeRenumber}
         />
       )}
 
