@@ -80,6 +80,9 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
   const [dragEmpKey, setDragEmpKey] = useState<string | null>(null);
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
 
+  // Copy/Paste state
+  const [copiedRow, setCopiedRow] = useState<{ empName: string; data: CellData[] } | null>(null);
+
   const todayColRef = useRef<HTMLTableCellElement>(null);
   const gridContainerRef = useRef<HTMLDivElement>(null);
 
@@ -253,6 +256,86 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     saveMemoApi(branchCode, year, month, dayIdx, value);
   };
 
+  // === 복사/붙여넣기 ===
+  const handleCopyRow = (emp: Employee) => {
+    const empKey = `${emp.code}-${emp.num}`;
+    const data = currentSchedule[empKey] || [];
+    setCopiedRow({ empName: emp.name || '(미정)', data: JSON.parse(JSON.stringify(data)) });
+  };
+
+  const handlePasteRow = (targetEmp: Employee) => {
+    if (!copiedRow) return;
+    if (!canEdit) return;
+    const empKey = `${targetEmp.code}-${targetEmp.num}`;
+    setScheduleCache(prev => {
+      const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
+      // 복사한 데이터를 목표 행에 적용 (깊은 복사)
+      branchSchedule[empKey] = JSON.parse(JSON.stringify(copiedRow.data));
+      persistSchedule(branchCode, year, month, branchSchedule);
+      return { ...prev, [cacheKey]: branchSchedule };
+    });
+  };
+
+  // 외부 시트(엑셀/구글시트) 클립보드 붙여넣기 파싱
+  const parseClipboardShifts = (text: string): ShiftType[] => {
+    // 탭/줄바꿈/공백으로 분리
+    const raw = text.replace(/\r/g, '').trim();
+    const cells = raw.includes('\t') || raw.includes('\n')
+      ? raw.split(/[\t\n]/)
+      : raw.split(/\s+/);
+    const validShifts = new Set<string>([
+      'D6', 'D9', 'M', 'E', 'N',
+      'D6/반', 'D9/반', 'M/반', 'E/반', 'N/반',
+      'D6/반반', 'D9/반반', 'M/반반', 'E/반반', 'N/반반',
+      '#', '#(연차)', '#(대체)', '#(병가)', '#(공가)', '#(보건)',
+      '#(경조)', '#(생일)', '#(출산)', '#(육아)', '#(태아)', '#(창립기념일)',
+      '파견', 'D9/단',
+    ]);
+    const korMap: Record<string, ShiftType> = {
+      '연차': '#(연차)', '대체': '#(대체)', '병가': '#(병가)', '공가': '#(공가)',
+      '보건': '#(보건)', '경조': '#(경조)', '생일': '#(생일)', '출산': '#(출산)',
+      '육아': '#(육아)', '태아': '#(태아)', '창립': '#(창립기념일)',
+    };
+    return cells.map(c => {
+      const t = c.trim();
+      if (validShifts.has(t)) return t as ShiftType;
+      if (korMap[t]) return korMap[t];
+      return '' as ShiftType;
+    });
+  };
+
+  const handlePasteFromClipboard = async (targetEmp: Employee, startDayIdx: number = 0) => {
+    if (!canEdit) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return;
+      const shifts = parseClipboardShifts(text);
+      if (shifts.length === 0) return;
+
+      const empKey = `${targetEmp.code}-${targetEmp.num}`;
+      setScheduleCache(prev => {
+        const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
+        const empSchedule = [...(branchSchedule[empKey] || [])];
+        shifts.forEach((shift, i) => {
+          const dayIdx = startDayIdx + i;
+          if (dayIdx >= days.length) return;
+          const existing = empSchedule[dayIdx] || { shift: '' as ShiftType, leaveRequest: false, kakaoT: false, memo: '' };
+          empSchedule[dayIdx] = {
+            ...existing,
+            shift,
+            leaveRequest: shift.startsWith('#') && shift !== '#' ? true : existing.leaveRequest,
+          };
+        });
+        branchSchedule[empKey] = empSchedule;
+        persistSchedule(branchCode, year, month, branchSchedule);
+        return { ...prev, [cacheKey]: branchSchedule };
+      });
+    } catch (e) {
+      alert('클립보드 읽기 실패. 브라우저 권한 허용 필요!');
+      console.error(e);
+    }
+  };
+
   const handleNameDoubleClick = (emp: Employee) => {
     if (bulkMode || !canEdit) return;
     const empKey = `${emp.code}-${emp.num}`;
@@ -370,6 +453,24 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
               {bulkShift === 'DELETE' ? '삭제할 셀을 클릭하거나 드래그' : '셀을 클릭하거나 드래그하여 일괄 입력'}
             </span>
           </>
+        )}
+        {/* 복사/붙여넣기 안내 */}
+        {!bulkMode && (
+          <div className="ml-auto flex items-center gap-2 text-[10px] text-gray-500">
+            {copiedRow ? (
+              <>
+                <span className="bg-green-100 text-green-700 px-2 py-1 rounded font-medium">
+                  📋 &quot;{copiedRow.empName}&quot; 복사됨
+                </span>
+                <span className="text-gray-500">다른 행의 📥 클릭하여 붙여넣기</span>
+                <button onClick={() => setCopiedRow(null)} className="text-red-500 hover:underline">취소</button>
+              </>
+            ) : (
+              <span className="text-gray-400">
+                💡 이름 옆 <span className="bg-gray-100 px-1 rounded">📋</span> 복사, <span className="bg-purple-100 px-1 rounded">📄</span> 엑셀 붙여넣기
+              </span>
+            )}
+          </div>
         )}
       </div>}
 
@@ -489,7 +590,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                 <tr key={empKey} className={`${rowBg} hover:bg-blue-50/30`}>
                   <td className={`${cellBg} border-r border-b border-gray-200 text-center text-gray-400 font-mono`}>{emp.num}</td>
                   <td
-                    className={`${cellBg} border-r border-b border-gray-200 px-2 py-1.5 font-medium text-gray-800 whitespace-nowrap`}
+                    className={`${cellBg} border-r border-b border-gray-200 px-2 py-1.5 font-medium text-gray-800 whitespace-nowrap group`}
                     onDoubleClick={() => handleNameDoubleClick(emp)}
                     title="더블클릭하여 이름 수정"
                   >
@@ -501,7 +602,36 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                         className="w-full px-1 py-0 text-xs border border-blue-400 rounded focus:outline-none bg-blue-50"
                       />
                     ) : (
-                      <span className={emp.name ? '' : 'text-gray-300 italic'}>{emp.name || '(미정)'}</span>
+                      <div className="flex items-center gap-1">
+                        <span className={emp.name ? '' : 'text-gray-300 italic'}>{emp.name || '(미정)'}</span>
+                        {canEdit && emp.name && (
+                          <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCopyRow(emp); }}
+                              className={`text-[10px] px-1 py-0.5 rounded ${copiedRow?.empName === emp.name ? 'bg-green-500 text-white' : 'bg-gray-100 hover:bg-blue-100 text-gray-600'}`}
+                              title="이 행 스케줄 복사"
+                            >
+                              📋
+                            </button>
+                            {copiedRow && copiedRow.empName !== emp.name && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handlePasteRow(emp); }}
+                                className="text-[10px] px-1 py-0.5 rounded bg-orange-100 hover:bg-orange-200 text-orange-700"
+                                title={`"${copiedRow.empName}" 스케줄을 여기에 붙여넣기`}
+                              >
+                                📥
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handlePasteFromClipboard(emp, 0); }}
+                              className="text-[10px] px-1 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-700"
+                              title="클립보드(엑셀/시트)에서 붙여넣기"
+                            >
+                              📄
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </td>
                   <td className={`${cellBg} border-r border-b border-gray-200 text-center py-1.5`}>
