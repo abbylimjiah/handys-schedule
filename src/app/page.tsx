@@ -50,17 +50,22 @@ export default function Home() {
     const user = getCurrentUser();
     setCurrentUser(user);
 
-    // 초기 지점 선택 로직:
-    // 1순위: 저장된 마지막 지점 (localStorage)
-    // 2순위: 사용자 본인 소속 지점 (HM/Mgr/Lead 상관없이)
+    // 초기 지점 선택 로직 (사용자별로 개별 저장):
+    // 1순위: 본인 소속 지점 (첫 화면은 항상 본인 지점)
+    // 2순위: 본인이 마지막으로 본 지점 (사용자별 저장)
     // 3순위: 기본 '02' (서면)
+    const userLastBranchKey = user ? `handys-last-branch-${user.name.toLowerCase().trim()}` : 'handys-last-branch';
     try {
-      const saved = localStorage.getItem('handys-last-branch');
-      if (saved) {
-        setSelectedBranch(saved);
-      } else if (user) {
+      if (user) {
+        // 본인 지점 우선 (첫 로그인 시)
         const homeBranch = getUserHomeBranch(user.name, initialEmps);
-        if (homeBranch) setSelectedBranch(homeBranch);
+        const userLastBranch = localStorage.getItem(userLastBranchKey);
+        // 본인이 이전에 봤던 지점이 있으면 그걸 사용 (아니면 본인 지점)
+        if (userLastBranch) {
+          setSelectedBranch(userLastBranch);
+        } else if (homeBranch) {
+          setSelectedBranch(homeBranch);
+        }
       }
     } catch {}
 
@@ -71,8 +76,8 @@ export default function Home() {
       const emps = await fetchEmployees();
       if (emps && emps.length > 0) {
         setEmployees(emps);
-        // 본인 지점 체크 (Supabase 데이터로 재확인)
-        if (user && !localStorage.getItem('handys-last-branch')) {
+        // 본인 지점 재확인 (Supabase 데이터로)
+        if (user && !localStorage.getItem(userLastBranchKey)) {
           const homeBranch = getUserHomeBranch(user.name, emps);
           if (homeBranch) setSelectedBranch(homeBranch);
         }
@@ -84,12 +89,15 @@ export default function Home() {
     return unsubscribe;
   }, []);
 
-  // 지점 변경 시 localStorage에 저장
+  // 지점 변경 시 localStorage에 저장 (사용자별)
   useEffect(() => {
-    if (hydrated) {
-      try { localStorage.setItem('handys-last-branch', selectedBranch); } catch {}
+    if (hydrated && currentUser) {
+      try {
+        const key = `handys-last-branch-${currentUser.name.toLowerCase().trim()}`;
+        localStorage.setItem(key, selectedBranch);
+      } catch {}
     }
-  }, [selectedBranch, hydrated]);
+  }, [selectedBranch, hydrated, currentUser]);
 
   const branch = branches.find(b => b.code === selectedBranch);
   const branchName = branch?.name || '';
