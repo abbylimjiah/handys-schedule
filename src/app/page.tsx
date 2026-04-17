@@ -27,6 +27,7 @@ import {
   isEditPeriod as checkEditPeriod,
   getAdminSettings,
   getHMBranch,
+  getUserHomeBranch,
 } from '@/data/auth';
 import { downloadAmaranthExcel, downloadAllBranchesAmaranth } from '@/data/amaranth';
 import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib/employeesApi';
@@ -51,15 +52,15 @@ export default function Home() {
 
     // 초기 지점 선택 로직:
     // 1순위: 저장된 마지막 지점 (localStorage)
-    // 2순위: 사용자가 HM이면 본인 지점
+    // 2순위: 사용자 본인 소속 지점 (HM/Mgr/Lead 상관없이)
     // 3순위: 기본 '02' (서면)
     try {
       const saved = localStorage.getItem('handys-last-branch');
       if (saved) {
         setSelectedBranch(saved);
       } else if (user) {
-        const hmBranch = getHMBranch(user.name, initialEmps);
-        if (hmBranch) setSelectedBranch(hmBranch);
+        const homeBranch = getUserHomeBranch(user.name, initialEmps);
+        if (homeBranch) setSelectedBranch(homeBranch);
       }
     } catch {}
 
@@ -70,10 +71,10 @@ export default function Home() {
       const emps = await fetchEmployees();
       if (emps && emps.length > 0) {
         setEmployees(emps);
-        // HM 지점 체크 (Supabase 데이터로 재확인)
+        // 본인 지점 체크 (Supabase 데이터로 재확인)
         if (user && !localStorage.getItem('handys-last-branch')) {
-          const hmBranch = getHMBranch(user.name, emps);
-          if (hmBranch) setSelectedBranch(hmBranch);
+          const homeBranch = getUserHomeBranch(user.name, emps);
+          if (homeBranch) setSelectedBranch(homeBranch);
         }
       }
     })();

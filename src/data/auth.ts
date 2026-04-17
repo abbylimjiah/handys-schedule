@@ -205,6 +205,14 @@ export function getHMBranch(name: string, employees?: Employee[]): string | null
   return hm ? hm.code : null;
 }
 
+// 사용자 본인 지점 (HM/Mgr/Lead 상관없이 모든 역할)
+export function getUserHomeBranch(name: string, employees?: Employee[]): string | null {
+  const emps = employees || getEmployees();
+  const normalized = (name || '').trim().toLowerCase();
+  const emp = emps.find(e => (e.name || '').trim().toLowerCase() === normalized);
+  return emp ? emp.code : null;
+}
+
 export function isHMForBranch(userName: string, branchCode: string, employees?: Employee[]): boolean {
   const hmBranch = getHMBranch(userName, employees);
   return hmBranch === branchCode;
