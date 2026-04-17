@@ -197,10 +197,11 @@ export function isEditPeriod(): boolean {
   return day >= 20 && day <= 24;
 }
 
-// HM 자동 편집: 로그인한 사용자가 해당 지점의 HM인지 확인
+// HM 자동 편집: 로그인한 사용자가 해당 지점의 HM인지 확인 (대소문자/공백 무시)
 export function getHMBranch(name: string, employees?: Employee[]): string | null {
   const emps = employees || getEmployees();
-  const hm = emps.find(e => e.name === name && e.role === 'HM');
+  const normalized = (name || '').trim().toLowerCase();
+  const hm = emps.find(e => (e.name || '').trim().toLowerCase() === normalized && e.role === 'HM');
   return hm ? hm.code : null;
 }
 

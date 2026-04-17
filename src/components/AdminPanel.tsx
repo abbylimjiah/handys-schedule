@@ -7,9 +7,10 @@ import {
   getMasterPassword, setMasterPassword,
   getManagedUsers, saveManagedUsers, initManagedUsers,
 } from '@/data/auth';
-import { Employee, branches } from '@/data/mockData';
+import { Employee, branches, defaultEmployees } from '@/data/mockData';
 import { employeeRoster } from '@/data/amaranth';
 import { fetchManagedUsers, bulkSaveManagedUsers, subscribeToManagedUsers } from '@/lib/usersApi';
+import { bulkUploadEmployees } from '@/lib/employeesApi';
 
 interface AdminPanelProps {
   isOpen: boolean;
@@ -218,7 +219,20 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
             <span className="text-sm font-medium">편집 기간 오버라이드</span>
             <span className="text-xs text-gray-400">(20~24일 외 허용)</span>
           </label>
-          <button onClick={() => { setShowPwChange(!showPwChange); setPwMsg(null); }} className="text-xs text-blue-600 hover:underline">🔑 비밀번호 변경</button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                if (!confirm('전체 직원 데이터를 기본값으로 초기화합니다. 계속하시겠습니까?\n\n(HM 편집 권한 문제 해결용 - 현재 서버의 직원 정보를 기본 데이터로 덮어씁니다)')) return;
+                const ok = await bulkUploadEmployees(defaultEmployees);
+                alert(ok ? '✅ 직원 데이터 재동기화 완료! 새로고침하세요.' : '❌ 동기화 실패. 콘솔 확인.');
+              }}
+              className="text-xs text-orange-600 hover:underline"
+              title="HM 편집 권한이 없다면 여기 클릭 (직원 데이터 초기화)"
+            >
+              🔄 직원 데이터 재동기화
+            </button>
+            <button onClick={() => { setShowPwChange(!showPwChange); setPwMsg(null); }} className="text-xs text-blue-600 hover:underline">🔑 비밀번호 변경</button>
+          </div>
         </div>
         {showPwChange && (
           <div className="px-5 py-2 border-b bg-gray-50 flex gap-2 items-end flex-wrap">
