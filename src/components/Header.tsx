@@ -122,11 +122,10 @@ export default function Header({
         <div className="flex items-center gap-1 md:gap-2 pl-2 border-l border-gray-200">
           <span className="text-[10px] md:text-xs font-medium text-gray-700">{currentUser?.name || ''}</span>
           <span className={`text-[9px] md:text-[10px] font-semibold px-1 md:px-1.5 py-0.5 rounded ${roleBadge.cls}`}>{roleBadge.label}</span>
-          {role === 'master' ? (
-            <button onClick={onLogout} className="text-[9px] md:text-[10px] text-gray-400 hover:text-red-500">로그아웃</button>
-          ) : (
+          {role !== 'master' && onMasterLogin && (
             <button onClick={onMasterLogin} className="text-[9px] md:text-[10px] text-blue-500 hover:text-blue-700 font-medium">마스터</button>
           )}
+          <button onClick={onLogout} className="text-[9px] md:text-[10px] text-gray-400 hover:text-red-500">로그아웃</button>
         </div>
       </div>
     </header>
