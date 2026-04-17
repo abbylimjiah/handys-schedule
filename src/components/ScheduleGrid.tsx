@@ -12,6 +12,8 @@ import {
   ShiftType,
 } from '@/data/mockData';
 import CellModal from './CellModal';
+import { loadSchedule, saveSchedule, subscribeToSchedule, loadAllSchedules, BranchSchedule as ApiBranchSchedule } from '@/lib/scheduleApi';
+import { getCurrentUser } from '@/data/auth';
 
 interface ScheduleGridProps {
   branchCode: string;
@@ -88,39 +90,18 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     } catch {}
   }, []);
 
-  // Helper: localStorage key for schedule
-  const scheduleStorageKey = (bCode: string, yr: number, mo: number) =>
-    `handys-schedule-${bCode}-${yr}-${mo}`;
-
-  // Save schedule to localStorage
-  const persistSchedule = useCallback((bCode: string, yr: number, mo: number, schedule: BranchSchedule) => {
-    try {
-      localStorage.setItem(scheduleStorageKey(bCode, yr, mo), JSON.stringify(schedule));
-    } catch (e) {
-      console.error('Failed to save schedule:', e);
-    }
+  // Save schedule to Supabase + localStorage
+  const persistSchedule = useCallback(async (bCode: string, yr: number, mo: number, schedule: BranchSchedule) => {
+    const user = getCurrentUser();
+    await saveSchedule(bCode, yr, mo, schedule as ApiBranchSchedule, user?.name);
   }, []);
 
-  // Load all cached schedules on mount (for any branch/month user visited before)
+  // Load all schedules on mount (Supabase 우선, localStorage 폴백)
   useEffect(() => {
-    try {
-      const loaded: Record<string, BranchSchedule> = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('handys-schedule-') && !k.startsWith('handys-schedule-employees')) {
-          const parts = k.replace('handys-schedule-', '').split('-');
-          if (parts.length === 3) {
-            const [bc, yr, mo] = parts;
-            const cKey = `${bc}-${mo}-${yr}`;
-            const val = localStorage.getItem(k);
-            if (val) loaded[cKey] = JSON.parse(val);
-          }
-        }
-      }
-      if (Object.keys(loaded).length > 0) setScheduleCache(loaded);
-    } catch (e) {
-      console.error('Failed to load schedules:', e);
-    }
+    (async () => {
+      const loaded = await loadAllSchedules();
+      if (Object.keys(loaded).length > 0) setScheduleCache(loaded as Record<string, BranchSchedule>);
+    })();
   }, []);
 
   useEffect(() => {
@@ -149,6 +130,26 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     }
     return scheduleCache[cacheKey];
   }, [branchCode, month, year, cacheKey, scheduleCache, employees]);
+
+  // Load current branch/month schedule from Supabase if not cached
+  useEffect(() => {
+    if (scheduleCache[cacheKey]) return;
+    (async () => {
+      const loaded = await loadSchedule(branchCode, year, month);
+      if (loaded) {
+        setScheduleCache(prev => ({ ...prev, [cacheKey]: loaded as BranchSchedule }));
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchCode, year, month, cacheKey]);
+
+  // Realtime subscription - 다른 사람이 수정하면 자동 반영!
+  useEffect(() => {
+    const unsubscribe = subscribeToSchedule(branchCode, year, month, (newSchedule) => {
+      setScheduleCache(prev => ({ ...prev, [cacheKey]: newSchedule as BranchSchedule }));
+    });
+    return unsubscribe;
+  }, [branchCode, year, month, cacheKey]);
 
   const handleCellClick = (emp: Employee, dayIndex: number) => {
     if (!canEdit) return; // Read-only mode
