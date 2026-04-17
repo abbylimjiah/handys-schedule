@@ -602,13 +602,17 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                         className="w-full px-1 py-0 text-xs border border-blue-400 rounded focus:outline-none bg-blue-50"
                       />
                     ) : (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <span className={emp.name ? '' : 'text-gray-300 italic'}>{emp.name || '(미정)'}</span>
                         {canEdit && emp.name && (
-                          <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="ml-auto flex items-center gap-1">
                             <button
                               onClick={(e) => { e.stopPropagation(); handleCopyRow(emp); }}
-                              className={`text-[10px] px-1 py-0.5 rounded ${copiedRow?.empName === emp.name ? 'bg-green-500 text-white' : 'bg-gray-100 hover:bg-blue-100 text-gray-600'}`}
+                              className={`text-[11px] px-1.5 py-0.5 rounded border transition-all ${
+                                copiedRow?.empName === emp.name
+                                  ? 'bg-green-500 border-green-600 text-white shadow-sm'
+                                  : 'bg-blue-50 border-blue-300 hover:bg-blue-100 text-blue-700'
+                              }`}
                               title="이 행 스케줄 복사"
                             >
                               📋
@@ -616,7 +620,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                             {copiedRow && copiedRow.empName !== emp.name && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handlePasteRow(emp); }}
-                                className="text-[10px] px-1 py-0.5 rounded bg-orange-100 hover:bg-orange-200 text-orange-700"
+                                className="text-[11px] px-1.5 py-0.5 rounded border border-orange-400 bg-orange-100 hover:bg-orange-200 text-orange-700 animate-pulse"
                                 title={`"${copiedRow.empName}" 스케줄을 여기에 붙여넣기`}
                               >
                                 📥
@@ -624,8 +628,8 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                             )}
                             <button
                               onClick={(e) => { e.stopPropagation(); handlePasteFromClipboard(emp, 0); }}
-                              className="text-[10px] px-1 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-700"
-                              title="클립보드(엑셀/시트)에서 붙여넣기"
+                              className="text-[11px] px-1.5 py-0.5 rounded border border-purple-300 bg-purple-50 hover:bg-purple-200 text-purple-700"
+                              title="엑셀/구글시트에서 복사한 내용 붙여넣기"
                             >
                               📄
                             </button>

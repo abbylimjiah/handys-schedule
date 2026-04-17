@@ -44,20 +44,51 @@ export default function Home() {
 
   useEffect(() => {
     // 초기값은 localStorage로 빠르게 설정
-    setEmployees(getEmployees());
-    setCurrentUser(getCurrentUser());
+    const initialEmps = getEmployees();
+    setEmployees(initialEmps);
+    const user = getCurrentUser();
+    setCurrentUser(user);
+
+    // 초기 지점 선택 로직:
+    // 1순위: 저장된 마지막 지점 (localStorage)
+    // 2순위: 사용자가 HM이면 본인 지점
+    // 3순위: 기본 '02' (서면)
+    try {
+      const saved = localStorage.getItem('handys-last-branch');
+      if (saved) {
+        setSelectedBranch(saved);
+      } else if (user) {
+        const hmBranch = getHMBranch(user.name, initialEmps);
+        if (hmBranch) setSelectedBranch(hmBranch);
+      }
+    } catch {}
+
     setHydrated(true);
 
     // Supabase에서 최신 데이터 불러오기
     (async () => {
       const emps = await fetchEmployees();
-      if (emps && emps.length > 0) setEmployees(emps);
+      if (emps && emps.length > 0) {
+        setEmployees(emps);
+        // HM 지점 체크 (Supabase 데이터로 재확인)
+        if (user && !localStorage.getItem('handys-last-branch')) {
+          const hmBranch = getHMBranch(user.name, emps);
+          if (hmBranch) setSelectedBranch(hmBranch);
+        }
+      }
     })();
 
     // 실시간 구독: 다른 사람이 직원 정보 수정하면 자동 반영
     const unsubscribe = subscribeToEmployees(emps => setEmployees(emps));
     return unsubscribe;
   }, []);
+
+  // 지점 변경 시 localStorage에 저장
+  useEffect(() => {
+    if (hydrated) {
+      try { localStorage.setItem('handys-last-branch', selectedBranch); } catch {}
+    }
+  }, [selectedBranch, hydrated]);
 
   const branch = branches.find(b => b.code === selectedBranch);
   const branchName = branch?.name || '';
