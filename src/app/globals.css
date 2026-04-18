@@ -8,6 +8,27 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+  /* iOS safe area */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-bottom {
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+
+/* Prevent iOS zoom on input focus */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* PWA standalone mode tweaks */
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior-y: contain;
+  }
 }
 
 /* Custom scrollbar for schedule grid */
