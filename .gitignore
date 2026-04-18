@@ -1,12 +1,1 @@
-node_modules/
-.next/
-out/
-src/
-next-env.d.ts
-next.config.js
-postcss.config.js
-tailwind.config.js
-tsconfig.json
-package.json
-package-lock.json
-cross_reference_codes.py
+node_modules
