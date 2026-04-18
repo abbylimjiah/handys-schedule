@@ -89,6 +89,21 @@ export default function Home() {
     return unsubscribe;
   }, []);
 
+  // 새로 로그인하거나 employees가 업데이트될 때 본인 지점으로 이동
+  useEffect(() => {
+    if (!hydrated || !currentUser || employees.length === 0) return;
+    const key = `handys-last-branch-${currentUser.name.toLowerCase().trim()}`;
+    const userLastBranch = localStorage.getItem(key);
+    if (!userLastBranch) {
+      // 마지막 지점 기록 없으면 본인 지점으로
+      const homeBranch = getUserHomeBranch(currentUser.name, employees);
+      if (homeBranch && homeBranch !== selectedBranch) {
+        setSelectedBranch(homeBranch);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.name, employees.length, hydrated]);
+
   // 지점 변경 시 localStorage에 저장 (사용자별)
   useEffect(() => {
     if (hydrated && currentUser) {
