@@ -230,9 +230,11 @@ export default function TrainingDashboard({ isOpen, onClose, currentUser, employ
               <option value="name">이름순</option>
               <option value="branch">지점순</option>
             </select>
-            <button onClick={downloadExcel} className="text-xs md:text-sm px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500">📥 엑셀</button>
             {isMaster && (
-              <button onClick={handleAdd} className="text-xs md:text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-500">+ 추가</button>
+              <>
+                <button onClick={downloadExcel} className="text-xs md:text-sm px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-500">📥 엑셀</button>
+                <button onClick={handleAdd} className="text-xs md:text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-500">+ 추가</button>
+              </>
             )}
           </div>
         </div>
