@@ -68,7 +68,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
   } | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState('');
-  const [showSummary, setShowSummary] = useState(true);
+  const [showSummary, setShowSummary] = useState(false);
   const [dayMemos, setDayMemos] = useState<Record<string, string>>({}); // key: "branchCode-month-dayIdx"
   const [editingMemoIdx, setEditingMemoIdx] = useState<number | null>(null);
   const [editingMemoValue, setEditingMemoValue] = useState('');
