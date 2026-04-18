@@ -90,28 +90,22 @@ export default function TrainingSection({ branchCode, branchName, year, month, e
   if (branchEmployees.length === 0) return null;
 
   return (
-    <div className="bg-white border-t-2 border-indigo-200">
+    <div className="bg-white border-t border-gray-200">
       <button
         onClick={() => setExpanded(v => !v)}
-        className="w-full flex items-center justify-between px-3 md:px-6 py-2 hover:bg-indigo-50 transition"
+        className="w-full flex items-center justify-between px-3 py-1 text-[10px] md:text-xs text-slate-500 hover:bg-slate-50 transition"
       >
-        <h3 className="text-sm md:text-base font-bold text-gray-800 flex items-center gap-2">
-          <span className={`inline-block transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
-          <span>💪</span>
-          <span>{year}년 {month}월 직군 이수</span>
-          <span className="text-xs text-gray-500 font-normal hidden sm:inline">({branchCode}_{branchName})</span>
-        </h3>
-        <div className="flex items-center gap-2">
+        <span className="flex items-center gap-1">
+          <span className={`inline-block transition-transform text-[8px] ${expanded ? 'rotate-90' : ''}`}>▶</span>
+          💪 {month}월 직군 이수
+          <span className="text-gray-400 hidden sm:inline">({branchCode}_{branchName})</span>
+        </span>
+        <span className="flex items-center gap-2">
           {!isInputAllowed && (
-            <span className="text-[10px] md:text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-              ℹ️ 5월부터 입력
-            </span>
+            <span className="text-[9px] text-amber-600">5월부터</span>
           )}
-          {isInputAllowed && !canEdit && (
-            <span className="text-[10px] md:text-xs text-gray-500">조회 전용</span>
-          )}
-          <span className="text-[10px] md:text-xs text-gray-400">{expanded ? '접기' : '펼치기'}</span>
-        </div>
+          <span className="text-[9px] text-gray-400">{expanded ? '접기' : '펼치기'}</span>
+        </span>
       </button>
 
       {expanded && (

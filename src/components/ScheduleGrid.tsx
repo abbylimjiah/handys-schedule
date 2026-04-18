@@ -731,13 +731,13 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
       </div>
 
       {/* ===== MONTHLY SUMMARY PANEL (아래쪽 집계) ===== */}
-      <div className="shrink-0 border-t-2 border-slate-300 bg-slate-50">
+      <div className="shrink-0 border-t border-gray-200 bg-white">
         <button
           onClick={() => setShowSummary(!showSummary)}
-          className="w-full flex items-center justify-between px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors"
+          className="w-full flex items-center justify-between px-3 py-1 text-[10px] md:text-xs text-slate-500 hover:bg-slate-50 transition-colors"
         >
-          <span>📊 {month}월 근무유형별 집계</span>
-          <span className={`transition-transform ${showSummary ? 'rotate-180' : ''}`}>▼</span>
+          <span className="flex items-center gap-1"><span className={`inline-block transition-transform text-[8px] ${showSummary ? 'rotate-90' : ''}`}>▶</span>📊 {month}월 근무유형별 집계</span>
+          <span className="text-[9px] text-gray-400">{showSummary ? '접기' : '펼치기'}</span>
         </button>
         {showSummary && (
           <div className="overflow-auto max-h-[240px] px-2 pb-2">
