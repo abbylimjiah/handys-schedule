@@ -8,6 +8,8 @@ import ScheduleGrid from '@/components/ScheduleGrid';
 import EmployeeModal from '@/components/EmployeeModal';
 import LoginModal from '@/components/LoginModal';
 import AdminPanel from '@/components/AdminPanel';
+import TrainingSection from '@/components/TrainingSection';
+import TrainingDashboard from '@/components/TrainingDashboard';
 import {
   branches,
   defaultEmployees,
@@ -38,6 +40,7 @@ export default function Home() {
   const [employeeModalOpen, setEmployeeModalOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [masterLoginOpen, setMasterLoginOpen] = useState(false);
+  const [trainingDashOpen, setTrainingDashOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>(defaultEmployees);
   const [hydrated, setHydrated] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -137,6 +140,11 @@ export default function Home() {
   const canManage = canManageEmployees(currentUser);
   const isMaster = currentUser?.role === 'master';
   const isHMBranch = currentUser ? getHMBranch(currentUser.name, employees) === selectedBranch : false;
+  // 전체 HM 여부 (대시보드 접근용)
+  const isAnyHM = currentUser ? employees.some(e => e.role === 'HM' && e.name.toLowerCase().trim() === (currentUser.name || '').toLowerCase().trim()) : false;
+  const canAccessTrainingDash = isMaster || isAnyHM;
+  // 직군 섹션 편집 권한: master or 해당 지점 HM or 본인
+  const canEditTraining = isMaster || isHMBranch || branchEmployees.some(e => e.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim());
 
   const handleEmployeeUpdate = useCallback((emp: Employee, field: string, value: string) => {
     setEmployees(prev => {
@@ -222,6 +230,7 @@ export default function Home() {
           currentUser={currentUser}
           onManageEmployees={canManage ? () => setEmployeeModalOpen(true) : undefined}
           onAdminPanel={isMaster ? () => setAdminPanelOpen(true) : undefined}
+          onTrainingDash={canAccessTrainingDash ? () => setTrainingDashOpen(true) : undefined}
           onMasterLogin={!isMaster ? () => setMasterLoginOpen(true) : undefined}
           onLogout={handleLogout}
           onDownloadAmaranth={isMaster ? () => {
@@ -251,6 +260,16 @@ export default function Home() {
           canEditLeave={canEditLeave}
           canDelete={canDelete}
         />
+
+        <TrainingSection
+          branchCode={selectedBranch}
+          branchName={branchName}
+          year={year}
+          month={selectedMonth}
+          employees={employees}
+          currentUser={currentUser}
+          canEdit={canEditTraining}
+        />
       </div>
 
       {canManage && (
@@ -276,6 +295,15 @@ export default function Home() {
 
       {masterLoginOpen && (
         <LoginModal mode="master" onLogin={u => { setCurrentUser(u); setMasterLoginOpen(false); }} onClose={() => setMasterLoginOpen(false)} />
+      )}
+
+      {canAccessTrainingDash && (
+        <TrainingDashboard
+          isOpen={trainingDashOpen}
+          onClose={() => setTrainingDashOpen(false)}
+          currentUser={currentUser}
+          employees={employees}
+        />
       )}
     </div>
   );

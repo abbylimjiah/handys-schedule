@@ -18,6 +18,7 @@ interface HeaderProps {
   currentUser: CurrentUser | null;
   onManageEmployees?: () => void;
   onAdminPanel?: () => void;
+  onTrainingDash?: () => void;
   onMasterLogin?: () => void;
   onLogout: () => void;
   onDownloadAmaranth?: () => void;
@@ -28,7 +29,7 @@ export default function Header({
   branchName, branchCode, month, year,
   workingCount, offCount, totalCount, branchTo,
   isEditPeriod, canEdit, isHMBranch, currentUser,
-  onManageEmployees, onAdminPanel, onMasterLogin, onLogout,
+  onManageEmployees, onAdminPanel, onTrainingDash, onMasterLogin, onLogout,
   onDownloadAmaranth, onDownloadAllAmaranth,
 }: HeaderProps) {
   const role = currentUser?.role || 'viewer';
@@ -81,6 +82,9 @@ export default function Header({
           )}
           {onAdminPanel && (
             <button onClick={onAdminPanel} className="px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded bg-red-600 text-white hover:bg-red-500">권한 관리</button>
+          )}
+          {onTrainingDash && (
+            <button onClick={onTrainingDash} className="px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded bg-indigo-600 text-white hover:bg-indigo-500">💪 직군</button>
           )}
           {/* Amaranth download - Master only */}
           {onDownloadAmaranth && (
