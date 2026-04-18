@@ -80,15 +80,28 @@ export default function TrainingDashboard({ isOpen, onClose, currentUser, employ
       if (r.a2) recMap[k].a2++;
     }
 
-    // 모든 이름 수집 (legacy + records + 현재 employees)
-    const allNames = new Set<string>();
-    for (const l of legacy) allNames.add(l.manager_name);
-    for (const r of records) allNames.add(r.manager_name);
-    for (const e of employees) if (e.name.trim()) allNames.add(e.name);
+    // 모든 이름 수집 (대소문자 구분 없이 Key 통합)
+    // key = lowercase, value = 표시용 이름 (대문자 우선)
+    const nameMap: Record<string, string> = {};
+    const pick = (name: string) => {
+      const k = name.toLowerCase().trim();
+      if (!k) return;
+      const existing = nameMap[k];
+      // 대문자로 시작하는 이름 우선 (Teri > teri)
+      if (!existing || (name[0] >= 'A' && name[0] <= 'Z' && !(existing[0] >= 'A' && existing[0] <= 'Z'))) {
+        nameMap[k] = name.trim();
+      }
+      // 현재 employees에 있는 이름이면 최우선
+      if (employees.some(e => e.name.trim() === name.trim())) {
+        nameMap[k] = name.trim();
+      }
+    };
+    for (const l of legacy) pick(l.manager_name);
+    for (const r of records) pick(r.manager_name);
+    for (const e of employees) if (e.name.trim()) pick(e.name);
 
     const out: Aggregated[] = [];
-    for (const name of Array.from(allNames)) {
-      const k = name.toLowerCase();
+    for (const [k, name] of Object.entries(nameMap)) {
       const leg = legMap[k] || {m1:0,m2:0,m3:0,m4:0,a1:0,a2:0};
       const rec = recMap[k] || {m1:0,m2:0,m3:0,m4:0,a1:0,a2:0};
       const emp = employees.find(e => e.name.toLowerCase().trim() === k);
@@ -102,7 +115,7 @@ export default function TrainingDashboard({ isOpen, onClose, currentUser, employ
       const total_a2 = leg.a2 + rec.a2;
 
       out.push({
-        manager_name: (legMap[k]?.manager_name) || name,
+        manager_name: name,
         branch_code: emp?.code || '-',
         branch_name: br?.name || '퇴사/미배정',
         role: emp?.role || '-',
