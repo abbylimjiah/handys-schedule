@@ -32,6 +32,8 @@ const CATEGORIES: Array<{ key: 'm1'|'m2'|'m3'|'m4'|'a1'|'a2'; label: string; gro
 export default function TrainingSection({ branchCode, branchName, year, month, employees, currentUser, canEdit }: Props) {
   const [records, setRecords] = useState<Record<string, TrainingRecord>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  // 기본 접혀있음 (스케줄 가독성 우선)
+  const [expanded, setExpanded] = useState(false);
 
   const branchEmployees = employees.filter(e => e.code === branchCode && e.name.trim());
 
@@ -88,23 +90,32 @@ export default function TrainingSection({ branchCode, branchName, year, month, e
   if (branchEmployees.length === 0) return null;
 
   return (
-    <div className="bg-white border-t-2 border-indigo-200 px-3 md:px-6 py-3 md:py-4">
-      <div className="flex items-center justify-between mb-2 md:mb-3">
+    <div className="bg-white border-t-2 border-indigo-200">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center justify-between px-3 md:px-6 py-2 hover:bg-indigo-50 transition"
+      >
         <h3 className="text-sm md:text-base font-bold text-gray-800 flex items-center gap-2">
+          <span className={`inline-block transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
           <span>💪</span>
           <span>{year}년 {month}월 직군 이수</span>
-          <span className="text-xs text-gray-500 font-normal">({branchCode}_{branchName})</span>
+          <span className="text-xs text-gray-500 font-normal hidden sm:inline">({branchCode}_{branchName})</span>
         </h3>
-        {!isInputAllowed && (
-          <span className="text-[10px] md:text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-            ℹ️ 2026년 5월부터 입력 가능 (이전 데이터는 대시보드 확인)
-          </span>
-        )}
-        {isInputAllowed && !canEdit && (
-          <span className="text-[10px] md:text-xs text-gray-500">조회 전용</span>
-        )}
-      </div>
+        <div className="flex items-center gap-2">
+          {!isInputAllowed && (
+            <span className="text-[10px] md:text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+              ℹ️ 5월부터 입력
+            </span>
+          )}
+          {isInputAllowed && !canEdit && (
+            <span className="text-[10px] md:text-xs text-gray-500">조회 전용</span>
+          )}
+          <span className="text-[10px] md:text-xs text-gray-400">{expanded ? '접기' : '펼치기'}</span>
+        </div>
+      </button>
 
+      {expanded && (
+      <div className="px-3 md:px-6 pb-3 md:pb-4">
       <div className="overflow-x-auto">
         <table className="w-full text-xs md:text-sm border-collapse">
           <thead>
@@ -156,6 +167,8 @@ export default function TrainingSection({ branchCode, branchName, year, month, e
       <p className="text-[10px] md:text-xs text-gray-400 mt-2">
         💡 매달 말 매니저 별 이수 직군 체크 (여러개 동시 체크 가능 · 본인 체크 가능 · HM은 전체 편집)
       </p>
+      </div>
+      )}
     </div>
   );
 }
