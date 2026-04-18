@@ -142,7 +142,8 @@ export default function Home() {
   const isHMBranch = currentUser ? getHMBranch(currentUser.name, employees) === selectedBranch : false;
   // 전체 HM 여부 (대시보드 접근용)
   const isAnyHM = currentUser ? employees.some(e => e.role === 'HM' && e.name.toLowerCase().trim() === (currentUser.name || '').toLowerCase().trim()) : false;
-  const canAccessTrainingDash = isMaster || isAnyHM;
+  // 모든 로그인 사용자 대시보드 접근 가능 (편집은 master만)
+  const canAccessTrainingDash = !!currentUser;
   // 직군 섹션 편집 권한: master or 해당 지점 HM or 본인
   const canEditTraining = isMaster || isHMBranch || branchEmployees.some(e => e.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim());
 
