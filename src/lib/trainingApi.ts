@@ -121,13 +121,15 @@ export function sumRecords(records: TrainingRecord[]): {m1:number;m2:number;m3:n
 // === 실시간 구독 ===
 export function subscribeToTraining(onChange: () => void): () => void {
   if (!isSupabaseEnabled() || !supabase) return () => {};
+  // 고유 채널 이름 (여러 컴포넌트 동시 구독 시 충돌 방지)
+  const uid = Math.random().toString(36).slice(2, 10);
   const ch1 = supabase
-    .channel('training-legacy')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'training_legacy' }, onChange)
+    .channel(`training-legacy-${uid}`)
+    .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'training_legacy' }, onChange)
     .subscribe();
   const ch2 = supabase
-    .channel('training-records')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'training_records' }, onChange)
+    .channel(`training-records-${uid}`)
+    .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'training_records' }, onChange)
     .subscribe();
   return () => {
     if (supabase) {
