@@ -4,7 +4,7 @@ export type ShiftType =
   | 'D6/반' | 'D9/반' | 'M/반' | 'E/반' | 'N/반'
   | 'D6/반반' | 'D9/반반' | 'M/반반' | 'E/반반' | 'N/반반'
   | '#' | '#(연차)' | '#(대체)' | '#(병가)' | '#(공가)' | '#(보건)'
-  | '#(경조)' | '#(생일)' | '#(출산)' | '#(육아)' | '#(태아)' | '#(창립기념일)'
+  | '#(경조)' | '#(생일)' | '#(출산)' | '#(육아)' | '#(태아)' | '#(창립기념일)' | '#(장기근속)'
   | '파견' | 'D9/단'
   | '';
 
@@ -380,6 +380,7 @@ export const shiftCategories = {
     { code: '#(육아)' as ShiftType, label: '육아', desc: '육아휴직' },
     { code: '#(태아)' as ShiftType, label: '태아', desc: '태아 건강검진' },
     { code: '#(창립기념일)' as ShiftType, label: '창립', desc: '창립기념일 연차' },
+    { code: '#(장기근속)' as ShiftType, label: '장기', desc: '장기근속 휴가' },
   ],
   special: [
     { code: '파견' as ShiftType, label: '파견', desc: '파견/출장' },
@@ -465,6 +466,7 @@ export function getShiftStyle(shift: ShiftType): { bg: string; text: string; lab
   if (shift === '#(육아)') return { bg: 'bg-emerald-100', text: 'text-emerald-700', label: '육아' };
   if (shift === '#(태아)') return { bg: 'bg-cyan-100', text: 'text-cyan-700', label: '태아' };
   if (shift === '#(창립기념일)') return { bg: 'bg-yellow-100', text: 'text-yellow-700', label: '창립' };
+  if (shift === '#(장기근속)') return { bg: 'bg-purple-100', text: 'text-purple-700', label: '장기' };
 
   // Special
   if (shift === '파견') return { bg: 'bg-stone-200', text: 'text-stone-700', label: '파견' };
@@ -501,6 +503,7 @@ export const shiftDescriptions: Record<string, string> = {
   '#(육아)': '육아휴직',
   '#(태아)': '임산부 태아 건강검진',
   '#(창립기념일)': '창립기념일 연차',
+  '#(장기근속)': '장기근속 휴가',
   '파견': '파견/출장',
   'D9/단': '임산부 단축근무',
 };
