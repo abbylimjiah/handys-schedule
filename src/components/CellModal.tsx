@@ -158,7 +158,7 @@ export default function CellModal({
                     : 'bg-gray-50 text-gray-400 border-transparent opacity-60 hover:opacity-100'
                 }`}
               >
-                빈칸
+                지우기
               </button>
             </div>
             {shift && (
