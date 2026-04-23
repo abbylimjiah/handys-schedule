@@ -75,7 +75,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
 
   // Bulk mode state
   const [bulkMode, setBulkMode] = useState(false);
-  const [bulkType, setBulkType] = useState<'shift' | 'memo'>('shift');
+  const [bulkType, setBulkType] = useState<'shift' | 'memo' | 'leave'>('shift');
   const [bulkShift, setBulkShift] = useState<ShiftType | 'DELETE'>('D9');
   const [isDragging, setIsDragging] = useState(false);
   const [dragEmpKey, setDragEmpKey] = useState<string | null>(null);
@@ -169,8 +169,8 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     if (!canEdit) return; // Read-only mode
     if (bulkMode) {
       const empKey = `${emp.code}-${emp.num}`;
-      if (bulkType === 'memo') {
-        // 메모 모드: 셀 토글 (선택/해제)
+      if (bulkType === 'memo' || bulkType === 'leave') {
+        // 메모/상신 모드: 셀 토글 (선택/해제)
         const cellId = `${empKey}-${dayIndex}`;
         setMemoSelection(prev => {
           const next = new Set(Array.from(prev));
@@ -219,8 +219,8 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     if (!bulkMode || !canEdit) return;
     const empKey = `${emp.code}-${emp.num}`;
     const cellId = `${empKey}-${dayIndex}`;
-    if (bulkType === 'memo') {
-      // 메모 모드: 드래그로 여러 셀 선택
+    if (bulkType === 'memo' || bulkType === 'leave') {
+      // 메모/상신 모드: 드래그로 여러 셀 선택
       setIsDragging(true);
       setDragEmpKey(empKey);
       setMemoSelection(prev => {
@@ -242,7 +242,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     const empKey = `${emp.code}-${emp.num}`;
     if (empKey !== dragEmpKey) return;
     const cellId = `${empKey}-${dayIndex}`;
-    if (bulkType === 'memo') {
+    if (bulkType === 'memo' || bulkType === 'leave') {
       setMemoSelection(prev => {
         if (prev.has(cellId)) return prev;
         const next = new Set(Array.from(prev));
@@ -261,7 +261,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     if (isDragging) {
       setIsDragging(false);
       setDragEmpKey(null);
-      // 메모 모드에서는 선택 유지 (memoSelection), shift 모드에서만 selectedCells 초기화
+      // 메모/상신 모드에서는 선택 유지 (memoSelection), shift 모드에서만 selectedCells 초기화
       if (bulkType === 'shift') setSelectedCells(new Set());
     }
   };
@@ -288,6 +288,27 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     setMemoSelection(new Set());
     setBulkMemo('');
   }, [memoSelection, bulkMemo, cacheKey, currentSchedule, persistSchedule, branchCode, year, month]);
+
+  // 상신 모드: 선택된 모든 셀의 leaveRequest를 일괄 ON/OFF
+  const applyBulkLeaveRequest = useCallback((value: boolean) => {
+    if (memoSelection.size === 0) return;
+    setScheduleCache(prev => {
+      const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
+      memoSelection.forEach(cellId => {
+        const lastDash = cellId.lastIndexOf('-');
+        const empKey = cellId.slice(0, lastDash);
+        const dayIdx = parseInt(cellId.slice(lastDash + 1));
+        if (isNaN(dayIdx)) return;
+        const empSchedule = [...(branchSchedule[empKey] || [])];
+        const existing = empSchedule[dayIdx] || { shift: '' as ShiftType, leaveRequest: false, kakaoT: false, memo: '' };
+        empSchedule[dayIdx] = { ...existing, leaveRequest: value };
+        branchSchedule[empKey] = empSchedule;
+      });
+      persistSchedule(branchCode, year, month, branchSchedule);
+      return { ...prev, [cacheKey]: branchSchedule };
+    });
+    setMemoSelection(new Set());
+  }, [memoSelection, cacheKey, currentSchedule, persistSchedule, branchCode, year, month]);
 
   const handleSave = (data: CellData) => {
     if (!modalInfo) return;
@@ -497,6 +518,12 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
             >
               📝 메모
             </button>
+            <button
+              onClick={() => { setBulkType('leave'); setSelectedCells(new Set()); setBulkMemo(''); }}
+              className={`px-2 py-1 text-[11px] font-semibold rounded transition-colors ${bulkType === 'leave' ? 'bg-pink-600 text-white' : 'bg-white text-pink-700 border border-pink-300'}`}
+            >
+              🔔 연차상신
+            </button>
           </div>
         )}
         {bulkMode && bulkType === 'shift' && (
@@ -563,6 +590,35 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
             )}
             <span className="text-[10px] text-amber-600 ml-1">
               셀을 클릭/드래그하여 선택 → 메모 입력 후 [적용]
+            </span>
+          </>
+        )}
+        {bulkMode && bulkType === 'leave' && (
+          <>
+            <button
+              onClick={() => applyBulkLeaveRequest(true)}
+              disabled={memoSelection.size === 0}
+              className="px-3 py-1 text-xs font-semibold bg-pink-600 text-white rounded hover:bg-pink-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              상신 ON ({memoSelection.size})
+            </button>
+            <button
+              onClick={() => applyBulkLeaveRequest(false)}
+              disabled={memoSelection.size === 0}
+              className="px-3 py-1 text-xs font-semibold bg-gray-600 text-white rounded hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              상신 OFF ({memoSelection.size})
+            </button>
+            {memoSelection.size > 0 && (
+              <button
+                onClick={() => setMemoSelection(new Set())}
+                className="text-[11px] text-red-500 hover:underline"
+              >
+                선택해제
+              </button>
+            )}
+            <span className="text-[10px] text-pink-600 ml-1">
+              셀 선택 → [상신 ON] 또는 [상신 OFF] 클릭
             </span>
           </>
         )}
@@ -784,7 +840,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                       else if (isSat) bgOverride = 'bg-blue-50/40';
                     }
 
-                    const isMemoSelected = bulkMode && bulkType === 'memo' && memoSelection.has(`${empKey}-${dayIdx}`);
+                    const isMemoSelected = bulkMode && (bulkType === 'memo' || bulkType === 'leave') && memoSelection.has(`${empKey}-${dayIdx}`);
                     return (
                       <td key={dayIdx}
                         className={`border-r border-b border-gray-200 p-0 relative ${isToday ? todayCls : bgOverride} ${isMemoSelected ? 'ring-2 ring-amber-500 ring-inset bg-amber-100/60' : ''} ${bulkMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
