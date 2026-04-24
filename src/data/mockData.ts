@@ -193,7 +193,7 @@ export const defaultEmployees: Employee[] = [
   { code: '15', branch: '강남 시그니티', num: 5, name: 'Bard', role: 'Mgr', hireDate: '2026-01-19' },
   // 17 서울 익선
   { code: '17', branch: '서울 익선', num: 1, name: 'Jamie', role: 'HM', hireDate: '2021-12-20' },
-  { code: '17', branch: '서울 익선', num: 2, name: 'Marie', role: 'Mgr', hireDate: '2023-09-18' },
+  { code: '17', branch: '서울 익선', num: 2, name: 'Marin', role: 'Mgr', hireDate: '2023-09-18' },
   { code: '17', branch: '서울 익선', num: 3, name: 'Blair', role: 'Mgr', hireDate: '2023-11-06' },
   { code: '17', branch: '서울 익선', num: 4, name: 'Luan', role: 'Mgr', hireDate: '2026-02-23' },
   // 18 시흥 웨이브파크
@@ -433,25 +433,25 @@ export function generateScheduleData(
 // Get shift display info
 export function getShiftStyle(shift: ShiftType): { bg: string; text: string; label: string } {
   // Regular shifts
-  if (shift === 'D6') return { bg: 'bg-amber-100', text: 'text-amber-800', label: 'D6' };
+  if (shift === 'D6') return { bg: 'bg-yellow-200', text: 'text-yellow-900', label: 'D6' };
   if (shift === 'D9') return { bg: 'bg-blue-100', text: 'text-blue-800', label: 'D9' };
   if (shift === 'M') return { bg: 'bg-violet-100', text: 'text-violet-800', label: 'M' };
   if (shift === 'E') return { bg: 'bg-orange-100', text: 'text-orange-800', label: 'E' };
-  if (shift === 'N') return { bg: 'bg-teal-100', text: 'text-teal-800', label: 'N' };
+  if (shift === 'N') return { bg: 'bg-indigo-200', text: 'text-indigo-900', label: 'N' };
 
   // Half shifts (반차)
-  if (shift === 'D6/반') return { bg: 'bg-amber-50', text: 'text-amber-600', label: 'D6반' };
+  if (shift === 'D6/반') return { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'D6반' };
   if (shift === 'D9/반') return { bg: 'bg-blue-50', text: 'text-blue-600', label: 'D9반' };
   if (shift === 'M/반') return { bg: 'bg-violet-50', text: 'text-violet-600', label: 'M반' };
   if (shift === 'E/반') return { bg: 'bg-orange-50', text: 'text-orange-600', label: 'E반' };
-  if (shift === 'N/반') return { bg: 'bg-teal-50', text: 'text-teal-600', label: 'N반' };
+  if (shift === 'N/반') return { bg: 'bg-indigo-100', text: 'text-indigo-700', label: 'N반' };
 
   // Quarter shifts (반반차)
-  if (shift === 'D6/반반') return { bg: 'bg-amber-50/60', text: 'text-amber-500', label: 'D6반반' };
+  if (shift === 'D6/반반') return { bg: 'bg-yellow-50', text: 'text-yellow-600', label: 'D6반반' };
   if (shift === 'D9/반반') return { bg: 'bg-blue-50/60', text: 'text-blue-500', label: 'D9반반' };
   if (shift === 'M/반반') return { bg: 'bg-violet-50/60', text: 'text-violet-500', label: 'M반반' };
   if (shift === 'E/반반') return { bg: 'bg-orange-50/60', text: 'text-orange-500', label: 'E반반' };
-  if (shift === 'N/반반') return { bg: 'bg-teal-50/60', text: 'text-teal-500', label: 'N반반' };
+  if (shift === 'N/반반') return { bg: 'bg-indigo-50', text: 'text-indigo-600', label: 'N반반' };
 
   // Off types
   if (shift === '#') return { bg: 'bg-gray-100', text: 'text-gray-500', label: '#' };
