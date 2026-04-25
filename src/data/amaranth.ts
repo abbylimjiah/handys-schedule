@@ -215,17 +215,25 @@ export function generateAmaranthCSV(
 }
 
 // 셀 종류별 색깔 결정
-type CellTag = 'leave' | 'half' | 'quarter' | 'off' | 'work' | 'header' | null;
+type CellTag = 'leave' | 'halfDay' | 'halfNight' | 'quarterDay' | 'quarterNight' | 'off' | 'work' | 'header' | null;
 
 function getCellColor(tag: CellTag): { fg: string; bg: string } | null {
   switch (tag) {
-    case 'leave':   return { fg: '9F1239', bg: 'FCE7F3' }; // 연차/연차상신: 핑크
-    case 'half':    return { fg: '9A3412', bg: 'FED7AA' }; // 반차: 주황
-    case 'quarter': return { fg: '92400E', bg: 'FEF3C7' }; // 반반차: 연노랑
-    case 'off':     return { fg: '4B5563', bg: 'F3F4F6' }; // 휴무: 회색
-    case 'header':  return { fg: '1F2937', bg: 'E5E7EB' }; // 헤더: 진회색
-    default:        return null;
+    case 'leave':         return { fg: 'FFFFFF', bg: 'EC4899' }; // 연차/연차상신: 진한 핑크
+    case 'halfDay':       return { fg: '7C2D12', bg: 'FB923C' }; // 주간 반차: 진한 주황
+    case 'halfNight':     return { fg: 'FFFFFF', bg: '7C3AED' }; // 야간 반차: 진한 보라
+    case 'quarterDay':    return { fg: '713F12', bg: 'FACC15' }; // 주간 반반차: 진노랑
+    case 'quarterNight':  return { fg: '4C1D95', bg: 'C4B5FD' }; // 야간 반반차: 라벤더
+    case 'off':           return { fg: 'FFFFFF', bg: '6B7280' }; // 휴무: 진한 회색
+    case 'header':        return { fg: '1F2937', bg: 'E5E7EB' }; // 헤더: 진회색
+    default:              return null;
   }
+}
+
+// 색깔 들어간 셀은 글씨도 굵게
+function isBoldTag(tag: CellTag): boolean {
+  return tag === 'leave' || tag === 'halfDay' || tag === 'halfNight'
+    || tag === 'quarterDay' || tag === 'quarterNight' || tag === 'off' || tag === 'header';
 }
 
 // 셀 데이터 → 태그 (색깔 결정용)
@@ -234,8 +242,9 @@ function classifyCell(cell: CellData | undefined | null): CellTag {
   if (cell.leaveRequest) return 'leave';
   const s = String(cell.shift);
   if (s === '#(연차)') return 'leave';
-  if (s.includes('/반반')) return 'quarter';
-  if (s.includes('/반')) return 'half';
+  const isNight = s.startsWith('N');
+  if (s.includes('/반반')) return isNight ? 'quarterNight' : 'quarterDay';
+  if (s.includes('/반'))   return isNight ? 'halfNight'    : 'halfDay';
   if (s.startsWith('#')) return 'off';
   return 'work';
 }
@@ -279,8 +288,8 @@ function buildSheet(
       cell.s = {
         font: {
           name: 'Arial',
-          sz: isHeader ? 10 : 10,
-          bold: isHeader,
+          sz: 10,
+          bold: isBoldTag(tag),
           color: { rgb: colors?.fg || '111111' },
         },
         alignment: { horizontal: 'center', vertical: 'center', wrapText: false },
