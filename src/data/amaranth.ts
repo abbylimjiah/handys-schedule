@@ -1,6 +1,7 @@
 // Amaranth HR System Excel Export Utility
 // Generates 교대근무엑셀업로드 format for Amaranth upload
 
+import * as XLSX from 'xlsx';
 import { ShiftType, Employee, CellData } from './mockData';
 
 // Nickname → Real Name → Employee Code mapping (from 명단 sheet)
@@ -210,6 +211,29 @@ export function generateAmaranthCSV(
   return lines.join('\n');
 }
 
+// 2D array → xlsx Workbook (모든 셀을 텍스트로 강제 저장)
+function arrayToWorkbook(rows: string[][], sheetName = 'Sheet1'): XLSX.WorkBook {
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  // 모든 셀을 텍스트 타입으로 (Excel이 "001" → 1로 변환하는 것 방지)
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C });
+      const cell = ws[addr];
+      if (cell !== undefined) {
+        cell.t = 's'; // string
+        cell.z = '@'; // text format
+        if (cell.v !== undefined && cell.v !== null) {
+          cell.v = String(cell.v);
+        }
+      }
+    }
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  return wb;
+}
+
 export function downloadAmaranthExcel(
   branchCode: string,
   branchName: string,
@@ -218,17 +242,37 @@ export function downloadAmaranthExcel(
   employees: Employee[],
   scheduleData: Record<string, CellData[]>
 ): void {
-  const csv = generateAmaranthCSV(branchCode, month, year, employees, scheduleData);
-  const BOM = '\uFEFF';
-  const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `교대근무엑셀업로드_${branchCode}_${branchName}_${year}${String(month).padStart(2, '0')}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const branchEmployees = employees.filter(e => e.code === branchCode && e.name.trim());
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  const headerLabels = ['근무분류코드', '근무분류명', '근무조코드', '근무조명', '사번', '사원명'];
+  const headerFields = ['GROUP_CD', 'GROUP_NM', 'PRTY_CD', 'PRTY_NM', 'EMP_CD', 'EMP_NM'];
+  const typeSpecs = ['text', 'text', 'text', 'text', 'text', 'text'];
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(year, month - 1, d);
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    headerLabels.push(dayNames[dateObj.getDay()]);
+    headerFields.push(`${year}${String(month).padStart(2, '0')}${String(d).padStart(2, '0')}`);
+    typeSpecs.push('text');
+  }
+
+  const dataRows: string[][] = [];
+  branchEmployees.forEach(emp => {
+    const roster = employeeRoster[emp.name];
+    if (!roster || !roster.empCode) return;
+    const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName];
+    const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
+    for (let d = 0; d < daysInMonth; d++) {
+      const cell = cells[d];
+      row.push(cell && cell.shift ? getAmaranthCode(cell.shift as ShiftType) : '');
+    }
+    dataRows.push(row);
+  });
+
+  const allRows = [headerLabels, headerFields, typeSpecs, ...dataRows];
+  const wb = arrayToWorkbook(allRows, '교대근무');
+  XLSX.writeFile(wb, `교대근무엑셀업로드_${branchCode}_${branchName}_${year}${String(month).padStart(2, '0')}.xlsx`);
 }
 
 export function downloadAllBranchesAmaranth(
@@ -271,21 +315,7 @@ export function downloadAllBranchesAmaranth(
     });
   });
 
-  const lines = [
-    headerLabels.join(','),
-    headerFields.join(','),
-    typeSpecs.join(','),
-    ...dataRows.map(row => row.map(v => `"${v}"`).join(',')),
-  ];
-
-  const BOM = '\uFEFF';
-  const blob = new Blob([BOM + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `교대근무엑셀업로드_전체_${year}${String(month).padStart(2, '0')}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const allRows = [headerLabels, headerFields, typeSpecs, ...dataRows];
+  const wb = arrayToWorkbook(allRows, '교대근무');
+  XLSX.writeFile(wb, `교대근무엑셀업로드_전체_${year}${String(month).padStart(2, '0')}.xlsx`);
 }
