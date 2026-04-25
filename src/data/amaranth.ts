@@ -1,7 +1,7 @@
 // Amaranth HR System Excel Export Utility
 // Generates 교대근무엑셀업로드 format for Amaranth upload
 
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { ShiftType, Employee, CellData } from './mockData';
 
 // Nickname → Real Name → Employee Code mapping (from 명단 sheet)
@@ -151,7 +151,10 @@ const shiftToAmaranth: Record<string, string> = {
   'N': '007',
   'D9/반': '001', 'E/반': '002', 'M/반': '005', 'D6/반': '006', 'N/반': '007',
   'D9/반반': '001', 'E/반반': '002', 'M/반반': '005', 'D6/반반': '006', 'N/반반': '007',
-  '#(연차)': '004', '#(대체)': '004', '#(병가)': '004', '#(공가)': '004',
+  // 연차는 근무일로 처리 (Amaranth에서 별도 연차신청)
+  '#(연차)': '001',
+  // 나머지 휴무류는 휴무(004)로
+  '#(대체)': '004', '#(병가)': '004', '#(공가)': '004',
   '#(보건)': '004', '#(경조)': '004', '#(생일)': '004', '#(출산)': '004',
   '#(육아)': '004', '#(태아)': '004', '#(창립기념일)': '004', '#(장기근속)': '004',
   '파견': '001', 'D9/단': '001',
@@ -211,24 +214,99 @@ export function generateAmaranthCSV(
   return lines.join('\n');
 }
 
-// 2D array → xlsx Workbook (모든 셀을 텍스트로 강제 저장)
-function arrayToWorkbook(rows: string[][], sheetName = 'Sheet1'): XLSX.WorkBook {
+// 셀 종류별 색깔 결정
+type CellTag = 'leave' | 'half' | 'quarter' | 'off' | 'work' | 'header' | null;
+
+function getCellColor(tag: CellTag): { fg: string; bg: string } | null {
+  switch (tag) {
+    case 'leave':   return { fg: '9F1239', bg: 'FCE7F3' }; // 연차/연차상신: 핑크
+    case 'half':    return { fg: '9A3412', bg: 'FED7AA' }; // 반차: 주황
+    case 'quarter': return { fg: '92400E', bg: 'FEF3C7' }; // 반반차: 연노랑
+    case 'off':     return { fg: '4B5563', bg: 'F3F4F6' }; // 휴무: 회색
+    case 'header':  return { fg: '1F2937', bg: 'E5E7EB' }; // 헤더: 진회색
+    default:        return null;
+  }
+}
+
+// 셀 데이터 → 태그 (색깔 결정용)
+function classifyCell(cell: CellData | undefined | null): CellTag {
+  if (!cell || !cell.shift) return null;
+  if (cell.leaveRequest) return 'leave';
+  const s = String(cell.shift);
+  if (s === '#(연차)') return 'leave';
+  if (s.includes('/반반')) return 'quarter';
+  if (s.includes('/반')) return 'half';
+  if (s.startsWith('#')) return 'off';
+  return 'work';
+}
+
+// 2D array → 스타일 정보 포함 워크시트
+function buildSheet(
+  rows: string[][],
+  options?: {
+    headerRows?: number; // 상단 몇 줄을 헤더로 (스타일 적용)
+    leftCols?: number;   // 왼쪽 몇 컬럼은 메타정보 (헤더 스타일)
+    cellTags?: (CellTag)[][]; // dataRows의 각 셀 태그 (없으면 생략)
+  }
+): XLSX.WorkSheet {
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  // 모든 셀을 텍스트 타입으로 (Excel이 "001" → 1로 변환하는 것 방지)
   const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  const headerRows = options?.headerRows ?? 0;
+  const leftCols = options?.leftCols ?? 0;
+  const cellTags = options?.cellTags;
+
   for (let R = range.s.r; R <= range.e.r; R++) {
     for (let C = range.s.c; C <= range.e.c; C++) {
       const addr = XLSX.utils.encode_cell({ r: R, c: C });
       const cell = ws[addr];
-      if (cell !== undefined) {
-        cell.t = 's'; // string
-        cell.z = '@'; // text format
-        if (cell.v !== undefined && cell.v !== null) {
-          cell.v = String(cell.v);
-        }
+      if (!cell) continue;
+      cell.t = 's';
+      cell.z = '@';
+      if (cell.v !== undefined && cell.v !== null) cell.v = String(cell.v);
+
+      // 스타일 적용
+      const isHeader = R < headerRows || C < leftCols;
+      let tag: CellTag = null;
+      if (isHeader) {
+        tag = 'header';
+      } else if (cellTags) {
+        const dataR = R - headerRows;
+        const dataC = C - leftCols;
+        tag = cellTags[dataR]?.[dataC] ?? null;
       }
+
+      const colors = getCellColor(tag);
+      cell.s = {
+        font: {
+          name: 'Arial',
+          sz: isHeader ? 10 : 10,
+          bold: isHeader,
+          color: { rgb: colors?.fg || '111111' },
+        },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: false },
+        border: {
+          top:    { style: 'thin', color: { rgb: 'D1D5DB' } },
+          bottom: { style: 'thin', color: { rgb: 'D1D5DB' } },
+          left:   { style: 'thin', color: { rgb: 'D1D5DB' } },
+          right:  { style: 'thin', color: { rgb: 'D1D5DB' } },
+        },
+        ...(colors && { fill: { fgColor: { rgb: colors.bg } } }),
+      };
     }
   }
+
+  // 컬럼 너비 (메타: 14, 날짜: 5)
+  const colWidths = [];
+  for (let C = 0; C <= range.e.c; C++) {
+    colWidths.push({ wch: C < leftCols ? 12 : 5 });
+  }
+  ws['!cols'] = colWidths;
+
+  return ws;
+}
+
+function arrayToWorkbook(rows: string[][], sheetName = 'Sheet1'): XLSX.WorkBook {
+  const ws = buildSheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   return wb;
@@ -256,6 +334,8 @@ export function downloadRawTextExcel(
   }
 
   const dataRows: string[][] = [];
+  const cellTags: CellTag[][] = [];
+  const META_COLS = 6;
   branchEmployees.forEach(emp => {
     const roster = employeeRoster[emp.name];
     const row = [
@@ -266,24 +346,27 @@ export function downloadRawTextExcel(
       emp.name,
       emp.role || '',
     ];
+    const tagRow: CellTag[] = [null, null, null, null, null, null];
     const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
     for (let d = 0; d < daysInMonth; d++) {
       const cell = cells[d];
-      if (!cell || !cell.shift) { row.push(''); continue; }
-      // shift label은 그대로 (D9, E, M, N, D6, #(연차) 등)
+      if (!cell || !cell.shift) { row.push(''); tagRow.push(null); continue; }
       let label: string = String(cell.shift);
-      // 휴무 종류는 보기 좋게 변환: '#(연차)' → '연차'
       if (label.startsWith('#(') && label.endsWith(')')) {
         label = label.slice(2, -1);
       }
       if (cell.memo) label += `(${cell.memo})`;
       row.push(label);
+      tagRow.push(classifyCell(cell));
     }
     dataRows.push(row);
+    cellTags.push(tagRow);
   });
 
   const allRows = [headerTop, headerBottom, ...dataRows];
-  const wb = arrayToWorkbook(allRows, branchName || '스케줄');
+  const ws = buildSheet(allRows, { headerRows: 2, leftCols: META_COLS, cellTags });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, branchName || '스케줄');
   XLSX.writeFile(wb, `스케줄_${branchCode}_${branchName}_${year}${String(month).padStart(2, '0')}.xlsx`);
 }
 
@@ -309,6 +392,8 @@ export function downloadAllRawTextExcel(
     allHeaderBottom.push(dayNames[dateObj.getDay()]);
   }
   const allDataRows: string[][] = [];
+  const allCellTags: CellTag[][] = [];
+  const META_COLS = 6;
 
   const branchCodes = Array.from(new Set(employees.filter(e => e.name.trim()).map(e => e.code)));
 
@@ -320,6 +405,7 @@ export function downloadAllRawTextExcel(
     const headerTop = [...allHeaderTop];
     const headerBottom = [...allHeaderBottom];
     const dataRows: string[][] = [];
+    const cellTags: CellTag[][] = [];
 
     branchEmps.forEach(emp => {
       const roster = employeeRoster[emp.name];
@@ -331,47 +417,34 @@ export function downloadAllRawTextExcel(
         emp.name,
         emp.role || '',
       ];
+      const tagRow: CellTag[] = [null, null, null, null, null, null];
       const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
       for (let d = 0; d < daysInMonth; d++) {
         const cell = cells[d];
-        if (!cell || !cell.shift) { row.push(''); continue; }
+        if (!cell || !cell.shift) { row.push(''); tagRow.push(null); continue; }
         let label: string = String(cell.shift);
         if (label.startsWith('#(') && label.endsWith(')')) {
           label = label.slice(2, -1);
         }
         if (cell.memo) label += `(${cell.memo})`;
         row.push(label);
+        tagRow.push(classifyCell(cell));
       }
       dataRows.push(row);
+      cellTags.push(tagRow);
       allDataRows.push(row);
+      allCellTags.push(tagRow);
     });
 
-    // 지점별 시트
     const sheetRows = [headerTop, headerBottom, ...dataRows];
-    const ws = XLSX.utils.aoa_to_sheet(sheetRows);
-    // 모든 셀 텍스트 형식
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-    for (let R = range.s.r; R <= range.e.r; R++) {
-      for (let C = range.s.c; C <= range.e.c; C++) {
-        const addr = XLSX.utils.encode_cell({ r: R, c: C });
-        if (ws[addr]) { ws[addr].t = 's'; ws[addr].z = '@'; }
-      }
-    }
-    const sheetName = `${code}_${branchName}`.slice(0, 31); // Excel 시트명 31자 제한
+    const ws = buildSheet(sheetRows, { headerRows: 2, leftCols: META_COLS, cellTags });
+    const sheetName = `${code}_${branchName}`.slice(0, 31);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   });
 
-  // 첫 시트로 통합 시트 추가
+  // 통합 시트를 맨 앞에 추가
   const allSheetRows = [allHeaderTop, allHeaderBottom, ...allDataRows];
-  const allWs = XLSX.utils.aoa_to_sheet(allSheetRows);
-  const range = XLSX.utils.decode_range(allWs['!ref'] || 'A1');
-  for (let R = range.s.r; R <= range.e.r; R++) {
-    for (let C = range.s.c; C <= range.e.c; C++) {
-      const addr = XLSX.utils.encode_cell({ r: R, c: C });
-      if (allWs[addr]) { allWs[addr].t = 's'; allWs[addr].z = '@'; }
-    }
-  }
-  // 통합 시트를 맨 앞에 삽입
+  const allWs = buildSheet(allSheetRows, { headerRows: 2, leftCols: META_COLS, cellTags: allCellTags });
   wb.SheetNames.unshift('전체');
   wb.Sheets['전체'] = allWs;
 
@@ -402,20 +475,27 @@ export function downloadAmaranthExcel(
   }
 
   const dataRows: string[][] = [];
+  const cellTags: CellTag[][] = [];
+  const META_COLS = 6;
   branchEmployees.forEach(emp => {
     const roster = employeeRoster[emp.name];
     if (!roster || !roster.empCode) return;
     const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName];
+    const tagRow: CellTag[] = [null, null, null, null, null, null];
     const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
     for (let d = 0; d < daysInMonth; d++) {
       const cell = cells[d];
       row.push(cell && cell.shift ? getAmaranthCode(cell.shift as ShiftType) : '');
+      tagRow.push(classifyCell(cell));
     }
     dataRows.push(row);
+    cellTags.push(tagRow);
   });
 
   const allRows = [headerLabels, headerFields, typeSpecs, ...dataRows];
-  const wb = arrayToWorkbook(allRows, '교대근무');
+  const ws = buildSheet(allRows, { headerRows: 3, leftCols: META_COLS, cellTags });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '교대근무');
   XLSX.writeFile(wb, `교대근무엑셀업로드_${branchCode}_${branchName}_${year}${String(month).padStart(2, '0')}.xlsx`);
 }
 
@@ -443,6 +523,9 @@ export function downloadAllBranchesAmaranth(
   const branchCodes = Array.from(new Set(allEmployees.map(e => e.code)));
   const dataRows: string[][] = [];
 
+  const cellTags: CellTag[][] = [];
+  const META_COLS = 6;
+
   branchCodes.forEach(code => {
     const scheduleData = getAllScheduleData(code);
     const branchEmps = allEmployees.filter(e => e.code === code);
@@ -450,16 +533,21 @@ export function downloadAllBranchesAmaranth(
       const roster = employeeRoster[emp.name];
       if (!roster || !roster.empCode) return;
       const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName];
+      const tagRow: CellTag[] = [null, null, null, null, null, null];
       const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
       for (let d = 0; d < daysInMonth; d++) {
         const cell = cells[d];
         row.push(cell && cell.shift ? getAmaranthCode(cell.shift as ShiftType) : '');
+        tagRow.push(classifyCell(cell));
       }
       dataRows.push(row);
+      cellTags.push(tagRow);
     });
   });
 
   const allRows = [headerLabels, headerFields, typeSpecs, ...dataRows];
-  const wb = arrayToWorkbook(allRows, '교대근무');
+  const ws = buildSheet(allRows, { headerRows: 3, leftCols: META_COLS, cellTags });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '교대근무');
   XLSX.writeFile(wb, `교대근무엑셀업로드_전체_${year}${String(month).padStart(2, '0')}.xlsx`);
 }
