@@ -218,14 +218,15 @@ export function generateAmaranthCSV(
 type CellTag = 'leave' | 'halfDay' | 'halfNight' | 'quarterDay' | 'quarterNight' | 'off' | 'work' | 'header' | null;
 
 function getCellColor(tag: CellTag): { fg: string; bg: string } | null {
+  // 글씨는 전부 검정, 배경색만 변경
   switch (tag) {
-    case 'leave':         return { fg: 'FFFFFF', bg: 'EC4899' }; // 연차/연차상신: 진한 핑크
-    case 'halfDay':       return { fg: '7C2D12', bg: 'FB923C' }; // 주간 반차: 진한 주황
-    case 'halfNight':     return { fg: 'FFFFFF', bg: '7C3AED' }; // 야간 반차: 진한 보라
-    case 'quarterDay':    return { fg: '713F12', bg: 'FACC15' }; // 주간 반반차: 진노랑
-    case 'quarterNight':  return { fg: '4C1D95', bg: 'C4B5FD' }; // 야간 반반차: 라벤더
-    case 'off':           return { fg: 'FFFFFF', bg: '6B7280' }; // 휴무: 진한 회색
-    case 'header':        return { fg: '1F2937', bg: 'E5E7EB' }; // 헤더: 진회색
+    case 'leave':         return { fg: '000000', bg: 'F9A8D4' }; // 연차/연차상신: 핑크
+    case 'halfDay':       return { fg: '000000', bg: 'FDBA74' }; // 주간 반차: 주황
+    case 'halfNight':     return { fg: '000000', bg: 'C4B5FD' }; // 야간 반차: 보라
+    case 'quarterDay':    return { fg: '000000', bg: 'FDE68A' }; // 주간 반반차: 노랑
+    case 'quarterNight':  return { fg: '000000', bg: 'E9D5FF' }; // 야간 반반차: 라벤더
+    case 'off':           return { fg: '000000', bg: 'D1D5DB' }; // 휴무: 회색
+    case 'header':        return { fg: '000000', bg: 'E5E7EB' }; // 헤더: 연회색
     default:              return null;
   }
 }
@@ -267,8 +268,12 @@ function buildSheet(
   for (let R = range.s.r; R <= range.e.r; R++) {
     for (let C = range.s.c; C <= range.e.c; C++) {
       const addr = XLSX.utils.encode_cell({ r: R, c: C });
-      const cell = ws[addr];
-      if (!cell) continue;
+      let cell = ws[addr];
+      if (!cell) {
+        // 빈 셀도 스타일 적용을 위해 셀 객체 생성
+        cell = { t: 's', v: '' };
+        ws[addr] = cell;
+      }
       cell.t = 's';
       cell.z = '@';
       if (cell.v !== undefined && cell.v !== null) cell.v = String(cell.v);
