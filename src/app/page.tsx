@@ -31,7 +31,7 @@ import {
   getHMBranch,
   getUserHomeBranch,
 } from '@/data/auth';
-import { downloadAmaranthExcel, downloadAllBranchesAmaranth } from '@/data/amaranth';
+import AmaranthDownloadModal from '@/components/AmaranthDownloadModal';
 import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib/employeesApi';
 
 export default function Home() {
@@ -41,6 +41,7 @@ export default function Home() {
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [masterLoginOpen, setMasterLoginOpen] = useState(false);
   const [trainingDashOpen, setTrainingDashOpen] = useState(false);
+  const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>(defaultEmployees);
   const [hydrated, setHydrated] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -234,14 +235,8 @@ export default function Home() {
           onTrainingDash={canAccessTrainingDash ? () => setTrainingDashOpen(true) : undefined}
           onMasterLogin={!isMaster ? () => setMasterLoginOpen(true) : undefined}
           onLogout={handleLogout}
-          onDownloadAmaranth={isMaster ? () => {
-            downloadAmaranthExcel(selectedBranch, branchName, selectedMonth, year, employees, scheduleData);
-          } : undefined}
-          onDownloadAllAmaranth={isMaster ? () => {
-            downloadAllBranchesAmaranth(selectedMonth, year, employees, (code) =>
-              generateScheduleData(code, selectedMonth, year, employees)
-            );
-          } : undefined}
+          onDownloadAmaranth={isMaster ? () => setDownloadModalOpen(true) : undefined}
+          onDownloadAllAmaranth={isMaster ? () => setDownloadModalOpen(true) : undefined}
         />
 
         <div className="bg-gray-50 border-b border-gray-200 px-3 md:px-6 py-2 flex items-center justify-between">
@@ -304,6 +299,17 @@ export default function Home() {
           onClose={() => setTrainingDashOpen(false)}
           currentUser={currentUser}
           employees={employees}
+        />
+      )}
+
+      {isMaster && (
+        <AmaranthDownloadModal
+          isOpen={downloadModalOpen}
+          onClose={() => setDownloadModalOpen(false)}
+          employees={employees}
+          defaultYear={year}
+          defaultMonth={selectedMonth}
+          defaultBranch={selectedBranch}
         />
       )}
     </div>
