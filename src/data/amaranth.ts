@@ -360,7 +360,7 @@ export function downloadRawTextExcel(
       emp.name,
       emp.role || '',
     ];
-    const tagRow: CellTag[] = [null, null, null, null, null, null];
+    const tagRow: CellTag[] = [];
     const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
     for (let d = 0; d < daysInMonth; d++) {
       const cell = cells[d];
@@ -431,7 +431,7 @@ export function downloadAllRawTextExcel(
         emp.name,
         emp.role || '',
       ];
-      const tagRow: CellTag[] = [null, null, null, null, null, null];
+      const tagRow: CellTag[] = [];
       const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
       for (let d = 0; d < daysInMonth; d++) {
         const cell = cells[d];
@@ -495,7 +495,7 @@ export function downloadAmaranthExcel(
     const roster = employeeRoster[emp.name];
     if (!roster || !roster.empCode) return;
     const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName];
-    const tagRow: CellTag[] = [null, null, null, null, null, null];
+    const tagRow: CellTag[] = [];
     const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
     for (let d = 0; d < daysInMonth; d++) {
       const cell = cells[d];
@@ -547,7 +547,7 @@ export function downloadAllBranchesAmaranth(
       const roster = employeeRoster[emp.name];
       if (!roster || !roster.empCode) return;
       const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName];
-      const tagRow: CellTag[] = [null, null, null, null, null, null];
+      const tagRow: CellTag[] = [];
       const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
       for (let d = 0; d < daysInMonth; d++) {
         const cell = cells[d];
