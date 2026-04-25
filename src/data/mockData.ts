@@ -17,6 +17,8 @@ export interface Employee {
   name: string;
   role: Role;
   hireDate: string;
+  realName?: string;  // 실명 (한글 이름)
+  empCode?: string;   // 사번 (예: 21049)
 }
 
 export interface CellData {

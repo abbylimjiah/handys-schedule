@@ -160,6 +160,15 @@ const shiftToAmaranth: Record<string, string> = {
   '파견': '001', 'D9/단': '001',
 };
 
+// 직원의 실명/사번 결정: 직원 데이터 우선, 없으면 정적 매핑 폴백
+export function resolveEmpInfo(emp: Employee): { realName: string; empCode: string } {
+  const fromRoster = employeeRoster[emp.name] || { realName: '', empCode: '' };
+  return {
+    realName: emp.realName || fromRoster.realName || '',
+    empCode: emp.empCode || fromRoster.empCode || '',
+  };
+}
+
 export function getAmaranthCode(shift: ShiftType | string): string {
   if (!shift) return '';
   return shiftToAmaranth[shift] || '';
@@ -194,9 +203,9 @@ export function generateAmaranthCSV(
 
   const dataRows: string[][] = [];
   branchEmployees.forEach(emp => {
-    const roster = employeeRoster[emp.name];
-    if (!roster || !roster.empCode) return;
-    const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName, emp.name];
+    const info = resolveEmpInfo(emp);
+    if (!info.empCode) return;
+    const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, info.empCode, info.realName, emp.name];
     const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
     for (let d = 0; d < daysInMonth; d++) {
       const cell = cells[d];
@@ -351,12 +360,12 @@ export function downloadRawTextExcel(
   const cellTags: CellTag[][] = [];
   const META_COLS = 6;
   branchEmployees.forEach(emp => {
-    const roster = employeeRoster[emp.name];
+    const info = resolveEmpInfo(emp);
     const row = [
       emp.code,
       branchName,
-      roster?.empCode || '',
-      roster?.realName || '',
+      info.empCode,
+      info.realName,
       emp.name,
       emp.role || '',
     ];
@@ -422,12 +431,12 @@ export function downloadAllRawTextExcel(
     const cellTags: CellTag[][] = [];
 
     branchEmps.forEach(emp => {
-      const roster = employeeRoster[emp.name];
+      const info = resolveEmpInfo(emp);
       const row = [
         emp.code,
         branchName,
-        roster?.empCode || '',
-        roster?.realName || '',
+        info.empCode,
+        info.realName,
         emp.name,
         emp.role || '',
       ];
@@ -492,9 +501,9 @@ export function downloadAmaranthExcel(
   const cellTags: CellTag[][] = [];
   const META_COLS = 7;
   branchEmployees.forEach(emp => {
-    const roster = employeeRoster[emp.name];
-    if (!roster || !roster.empCode) return;
-    const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName, emp.name];
+    const info = resolveEmpInfo(emp);
+    if (!info.empCode) return;
+    const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, info.empCode, info.realName, emp.name];
     const tagRow: CellTag[] = [];
     const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
     for (let d = 0; d < daysInMonth; d++) {
@@ -544,9 +553,9 @@ export function downloadAllBranchesAmaranth(
     const scheduleData = getAllScheduleData(code);
     const branchEmps = allEmployees.filter(e => e.code === code);
     branchEmps.forEach(emp => {
-      const roster = employeeRoster[emp.name];
-      if (!roster || !roster.empCode) return;
-      const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName, emp.name];
+      const info = resolveEmpInfo(emp);
+      if (!info.empCode) return;
+      const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, info.empCode, info.realName, emp.name];
       const tagRow: CellTag[] = [];
       const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
       for (let d = 0; d < daysInMonth; d++) {

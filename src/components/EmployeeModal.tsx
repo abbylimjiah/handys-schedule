@@ -56,7 +56,14 @@ export default function EmployeeModal({
   const handleStartEdit = (emp: Employee, field: string) => {
     const empKey = `${emp.code}-${emp.num}`;
     setEditingCell({ empKey, field });
-    setEditValue(field === 'name' ? emp.name : field === 'role' ? emp.role : emp.hireDate);
+    const v =
+      field === 'name' ? emp.name :
+      field === 'role' ? emp.role :
+      field === 'hireDate' ? emp.hireDate :
+      field === 'realName' ? (emp.realName || '') :
+      field === 'empCode' ? (emp.empCode || '') :
+      '';
+    setEditValue(v);
   };
 
   const handleSaveEdit = (emp: Employee) => {
@@ -103,7 +110,7 @@ export default function EmployeeModal({
       onClick={onClose}
     >
       <div
-        className="modal-content bg-white rounded-xl shadow-2xl w-[520px] max-h-[80vh] overflow-hidden flex flex-col"
+        className="modal-content bg-white rounded-xl shadow-2xl w-[760px] max-h-[85vh] overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -143,7 +150,9 @@ export default function EmployeeModal({
             <thead>
               <tr className="text-left text-xs text-gray-500 border-b">
                 <th className="py-2 w-8">No</th>
-                <th className="py-2">이름</th>
+                <th className="py-2">닉네임</th>
+                <th className="py-2 w-24">실명</th>
+                <th className="py-2 w-20">사번</th>
                 <th className="py-2 w-16">직책</th>
                 <th className="py-2 w-24">입사일</th>
                 <th className="py-2 w-12"></th>
@@ -177,6 +186,58 @@ export default function EmployeeModal({
                           className={`cursor-pointer hover:text-blue-600 ${emp.name ? 'text-gray-800' : 'text-gray-300 italic'}`}
                         >
                           {emp.name || '(미정)'}
+                        </span>
+                      )}
+                    </td>
+                    {/* 실명 */}
+                    <td className="py-2 text-xs">
+                      {editingCell?.empKey === empKey && editingCell.field === 'realName' ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          value={editValue}
+                          onChange={e => setEditValue(e.target.value)}
+                          onBlur={() => handleSaveEdit(emp)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleSaveEdit(emp);
+                            if (e.key === 'Escape') setEditingCell(null);
+                          }}
+                          placeholder="한글 이름"
+                          className="px-2 py-0.5 border border-blue-400 rounded text-xs focus:outline-none bg-blue-50 w-full"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => handleStartEdit(emp, 'realName')}
+                          className={`cursor-pointer hover:text-blue-600 ${emp.realName ? 'text-gray-700' : 'text-red-400 italic'}`}
+                          title="클릭하여 실명 편집"
+                        >
+                          {emp.realName || '⚠️ 미입력'}
+                        </span>
+                      )}
+                    </td>
+                    {/* 사번 */}
+                    <td className="py-2 text-xs font-mono">
+                      {editingCell?.empKey === empKey && editingCell.field === 'empCode' ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          value={editValue}
+                          onChange={e => setEditValue(e.target.value)}
+                          onBlur={() => handleSaveEdit(emp)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleSaveEdit(emp);
+                            if (e.key === 'Escape') setEditingCell(null);
+                          }}
+                          placeholder="21049"
+                          className="px-2 py-0.5 border border-blue-400 rounded text-xs focus:outline-none bg-blue-50 w-full"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => handleStartEdit(emp, 'empCode')}
+                          className={`cursor-pointer hover:text-blue-600 ${emp.empCode ? 'text-gray-600' : 'text-red-400 italic'}`}
+                          title="클릭하여 사번 편집"
+                        >
+                          {emp.empCode || '⚠️'}
                         </span>
                       )}
                     </td>

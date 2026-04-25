@@ -2,8 +2,22 @@
 
 import { supabase, isSupabaseEnabled } from './supabase';
 import { Employee, defaultEmployees } from '@/data/mockData';
+import { employeeRoster } from '@/data/amaranth';
 
 const LOCAL_KEY = 'handys-schedule-employees';
+
+// 직원에 realName/empCode가 비어있으면 정적 매핑(employeeRoster)에서 백필
+// (DB에 새 컬럼 추가 직후 기존 직원들의 실명/사번 자동 채우기 위해)
+function backfillFromRoster(emp: Employee): Employee {
+  if (emp.realName && emp.empCode) return emp;
+  const roster = employeeRoster[emp.name];
+  if (!roster) return emp;
+  return {
+    ...emp,
+    realName: emp.realName || roster.realName || '',
+    empCode: emp.empCode || roster.empCode || '',
+  };
+}
 
 // 직원 목록 불러오기 (Supabase 우선)
 export async function fetchEmployees(): Promise<Employee[]> {
@@ -11,17 +25,19 @@ export async function fetchEmployees(): Promise<Employee[]> {
     try {
       const { data, error } = await supabase
         .from('employees')
-        .select('code, branch, num, name, role, hire_date')
+        .select('code, branch, num, name, role, hire_date, real_name, emp_code')
         .order('code')
         .order('num');
       if (!error && data && data.length > 0) {
-        const emps: Employee[] = data.map(r => ({
+        const emps: Employee[] = data.map(r => backfillFromRoster({
           code: r.code,
           branch: r.branch,
           num: r.num,
           name: r.name,
           role: r.role as Employee['role'],
           hireDate: r.hire_date || '',
+          realName: r.real_name || '',
+          empCode: r.emp_code || '',
         }));
         try { localStorage.setItem(LOCAL_KEY, JSON.stringify(emps)); } catch {}
         return emps;
@@ -38,9 +54,12 @@ export async function fetchEmployees(): Promise<Employee[]> {
   // localStorage 폴백
   try {
     const stored = localStorage.getItem(LOCAL_KEY);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed: Employee[] = JSON.parse(stored);
+      return parsed.map(backfillFromRoster);
+    }
   } catch {}
-  return defaultEmployees;
+  return defaultEmployees.map(backfillFromRoster);
 }
 
 // 전체 덮어쓰기
@@ -55,6 +74,8 @@ export async function bulkUploadEmployees(employees: Employee[]): Promise<boolea
       name: e.name,
       role: e.role,
       hire_date: e.hireDate || null,
+      real_name: e.realName || null,
+      emp_code: e.empCode || null,
     }));
     const { error } = await supabase.from('employees').insert(rows);
     if (error) { console.error('Bulk upload failed', error); return false; }
@@ -81,6 +102,8 @@ export async function saveBranchEmployees(branchCode: string, employees: Employe
         name: e.name,
         role: e.role,
         hire_date: e.hireDate || null,
+        real_name: e.realName || null,
+        emp_code: e.empCode || null,
       }));
     if (rows.length > 0) {
       const { error } = await supabase.from('employees').insert(rows);
