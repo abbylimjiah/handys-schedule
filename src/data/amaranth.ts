@@ -234,6 +234,150 @@ function arrayToWorkbook(rows: string[][], sheetName = 'Sheet1'): XLSX.WorkBook 
   return wb;
 }
 
+// 텍스트 그대로 버전 (D9, E, M 등 라벨 그대로) — 단일 지점
+export function downloadRawTextExcel(
+  branchCode: string,
+  branchName: string,
+  month: number,
+  year: number,
+  employees: Employee[],
+  scheduleData: Record<string, CellData[]>
+): void {
+  const branchEmployees = employees.filter(e => e.code === branchCode && e.name.trim());
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+  const headerTop = ['지점코드', '지점명', '사번', '사원명', '닉네임', '직책'];
+  const headerBottom = ['', '', '', '', '', ''];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(year, month - 1, d);
+    headerTop.push(`${month}/${d}`);
+    headerBottom.push(dayNames[dateObj.getDay()]);
+  }
+
+  const dataRows: string[][] = [];
+  branchEmployees.forEach(emp => {
+    const roster = employeeRoster[emp.name];
+    const row = [
+      emp.code,
+      branchName,
+      roster?.empCode || '',
+      roster?.realName || '',
+      emp.name,
+      emp.role || '',
+    ];
+    const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
+    for (let d = 0; d < daysInMonth; d++) {
+      const cell = cells[d];
+      if (!cell || !cell.shift) { row.push(''); continue; }
+      // shift label은 그대로 (D9, E, M, N, D6, #(연차) 등)
+      let label: string = String(cell.shift);
+      // 휴무 종류는 보기 좋게 변환: '#(연차)' → '연차'
+      if (label.startsWith('#(') && label.endsWith(')')) {
+        label = label.slice(2, -1);
+      }
+      if (cell.memo) label += `(${cell.memo})`;
+      row.push(label);
+    }
+    dataRows.push(row);
+  });
+
+  const allRows = [headerTop, headerBottom, ...dataRows];
+  const wb = arrayToWorkbook(allRows, branchName || '스케줄');
+  XLSX.writeFile(wb, `스케줄_${branchCode}_${branchName}_${year}${String(month).padStart(2, '0')}.xlsx`);
+}
+
+// 텍스트 그대로 버전 — 전체 지점 (지점별 시트 분리)
+export function downloadAllRawTextExcel(
+  month: number,
+  year: number,
+  employees: Employee[],
+  getAllScheduleData: (branchCode: string) => Record<string, CellData[]>,
+  branches: { code: string; name: string }[]
+): void {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+  const wb = XLSX.utils.book_new();
+
+  // 전체 통합 시트도 추가
+  const allHeaderTop = ['지점코드', '지점명', '사번', '사원명', '닉네임', '직책'];
+  const allHeaderBottom = ['', '', '', '', '', ''];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(year, month - 1, d);
+    allHeaderTop.push(`${month}/${d}`);
+    allHeaderBottom.push(dayNames[dateObj.getDay()]);
+  }
+  const allDataRows: string[][] = [];
+
+  const branchCodes = Array.from(new Set(employees.filter(e => e.name.trim()).map(e => e.code)));
+
+  branchCodes.forEach(code => {
+    const branchName = branches.find(b => b.code === code)?.name || code;
+    const branchEmps = employees.filter(e => e.code === code && e.name.trim());
+    const scheduleData = getAllScheduleData(code);
+
+    const headerTop = [...allHeaderTop];
+    const headerBottom = [...allHeaderBottom];
+    const dataRows: string[][] = [];
+
+    branchEmps.forEach(emp => {
+      const roster = employeeRoster[emp.name];
+      const row = [
+        emp.code,
+        branchName,
+        roster?.empCode || '',
+        roster?.realName || '',
+        emp.name,
+        emp.role || '',
+      ];
+      const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
+      for (let d = 0; d < daysInMonth; d++) {
+        const cell = cells[d];
+        if (!cell || !cell.shift) { row.push(''); continue; }
+        let label: string = String(cell.shift);
+        if (label.startsWith('#(') && label.endsWith(')')) {
+          label = label.slice(2, -1);
+        }
+        if (cell.memo) label += `(${cell.memo})`;
+        row.push(label);
+      }
+      dataRows.push(row);
+      allDataRows.push(row);
+    });
+
+    // 지점별 시트
+    const sheetRows = [headerTop, headerBottom, ...dataRows];
+    const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+    // 모든 셀 텍스트 형식
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    for (let R = range.s.r; R <= range.e.r; R++) {
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+        if (ws[addr]) { ws[addr].t = 's'; ws[addr].z = '@'; }
+      }
+    }
+    const sheetName = `${code}_${branchName}`.slice(0, 31); // Excel 시트명 31자 제한
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  // 첫 시트로 통합 시트 추가
+  const allSheetRows = [allHeaderTop, allHeaderBottom, ...allDataRows];
+  const allWs = XLSX.utils.aoa_to_sheet(allSheetRows);
+  const range = XLSX.utils.decode_range(allWs['!ref'] || 'A1');
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C });
+      if (allWs[addr]) { allWs[addr].t = 's'; allWs[addr].z = '@'; }
+    }
+  }
+  // 통합 시트를 맨 앞에 삽입
+  wb.SheetNames.unshift('전체');
+  wb.Sheets['전체'] = allWs;
+
+  XLSX.writeFile(wb, `스케줄_전체_${year}${String(month).padStart(2, '0')}.xlsx`);
+}
+
 export function downloadAmaranthExcel(
   branchCode: string,
   branchName: string,
