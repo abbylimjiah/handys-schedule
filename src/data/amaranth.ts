@@ -180,9 +180,9 @@ export function generateAmaranthCSV(
   const branchEmployees = employees.filter(e => e.code === branchCode && e.name.trim());
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  const headerLabels = ['근무분류코드', '근무분류명', '근무조코드', '근무조명', '사번', '사원명'];
-  const headerFields = ['GROUP_CD', 'GROUP_NM', 'PRTY_CD', 'PRTY_NM', 'EMP_CD', 'EMP_NM'];
-  const typeSpecs = ['text', 'text', 'text', 'text', 'text', 'text'];
+  const headerLabels = ['근무분류코드', '근무분류명', '근무조코드', '근무조명', '사번', '사원명', '닉네임'];
+  const headerFields = ['GROUP_CD', 'GROUP_NM', 'PRTY_CD', 'PRTY_NM', 'EMP_CD', 'EMP_NM', 'NICK'];
+  const typeSpecs = ['text', 'text', 'text', 'text', 'text', 'text', 'text'];
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dateObj = new Date(year, month - 1, d);
@@ -196,7 +196,7 @@ export function generateAmaranthCSV(
   branchEmployees.forEach(emp => {
     const roster = employeeRoster[emp.name];
     if (!roster || !roster.empCode) return;
-    const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName];
+    const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName, emp.name];
     const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
     for (let d = 0; d < daysInMonth; d++) {
       const cell = cells[d];
@@ -476,9 +476,9 @@ export function downloadAmaranthExcel(
   const branchEmployees = employees.filter(e => e.code === branchCode && e.name.trim());
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  const headerLabels = ['근무분류코드', '근무분류명', '근무조코드', '근무조명', '사번', '사원명'];
-  const headerFields = ['GROUP_CD', 'GROUP_NM', 'PRTY_CD', 'PRTY_NM', 'EMP_CD', 'EMP_NM'];
-  const typeSpecs = ['text', 'text', 'text', 'text', 'text', 'text'];
+  const headerLabels = ['근무분류코드', '근무분류명', '근무조코드', '근무조명', '사번', '사원명', '닉네임'];
+  const headerFields = ['GROUP_CD', 'GROUP_NM', 'PRTY_CD', 'PRTY_NM', 'EMP_CD', 'EMP_NM', 'NICK'];
+  const typeSpecs = ['text', 'text', 'text', 'text', 'text', 'text', 'text'];
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dateObj = new Date(year, month - 1, d);
@@ -490,11 +490,11 @@ export function downloadAmaranthExcel(
 
   const dataRows: string[][] = [];
   const cellTags: CellTag[][] = [];
-  const META_COLS = 6;
+  const META_COLS = 7;
   branchEmployees.forEach(emp => {
     const roster = employeeRoster[emp.name];
     if (!roster || !roster.empCode) return;
-    const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName];
+    const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName, emp.name];
     const tagRow: CellTag[] = [];
     const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
     for (let d = 0; d < daysInMonth; d++) {
@@ -522,9 +522,9 @@ export function downloadAllBranchesAmaranth(
   const allEmployees = employees.filter(e => e.name.trim());
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  const headerLabels = ['근무분류코드', '근무분류명', '근무조코드', '근무조명', '사번', '사원명'];
-  const headerFields = ['GROUP_CD', 'GROUP_NM', 'PRTY_CD', 'PRTY_NM', 'EMP_CD', 'EMP_NM'];
-  const typeSpecs = ['text', 'text', 'text', 'text', 'text', 'text'];
+  const headerLabels = ['근무분류코드', '근무분류명', '근무조코드', '근무조명', '사번', '사원명', '닉네임'];
+  const headerFields = ['GROUP_CD', 'GROUP_NM', 'PRTY_CD', 'PRTY_NM', 'EMP_CD', 'EMP_NM', 'NICK'];
+  const typeSpecs = ['text', 'text', 'text', 'text', 'text', 'text', 'text'];
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dateObj = new Date(year, month - 1, d);
@@ -538,7 +538,7 @@ export function downloadAllBranchesAmaranth(
   const dataRows: string[][] = [];
 
   const cellTags: CellTag[][] = [];
-  const META_COLS = 6;
+  const META_COLS = 7;
 
   branchCodes.forEach(code => {
     const scheduleData = getAllScheduleData(code);
@@ -546,7 +546,7 @@ export function downloadAllBranchesAmaranth(
     branchEmps.forEach(emp => {
       const roster = employeeRoster[emp.name];
       if (!roster || !roster.empCode) return;
-      const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName];
+      const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, roster.empCode, roster.realName, emp.name];
       const tagRow: CellTag[] = [];
       const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
       for (let d = 0; d < daysInMonth; d++) {
