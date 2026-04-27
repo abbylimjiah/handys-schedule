@@ -32,6 +32,7 @@ import {
   getUserHomeBranch,
 } from '@/data/auth';
 import AmaranthDownloadModal from '@/components/AmaranthDownloadModal';
+import MonthlyRosterModal from '@/components/MonthlyRosterModal';
 import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib/employeesApi';
 
 export default function Home() {
@@ -42,6 +43,7 @@ export default function Home() {
   const [masterLoginOpen, setMasterLoginOpen] = useState(false);
   const [trainingDashOpen, setTrainingDashOpen] = useState(false);
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
+  const [monthlyRosterOpen, setMonthlyRosterOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>(defaultEmployees);
   const [hydrated, setHydrated] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -233,6 +235,7 @@ export default function Home() {
           onManageEmployees={canManage ? () => setEmployeeModalOpen(true) : undefined}
           onAdminPanel={isMaster ? () => setAdminPanelOpen(true) : undefined}
           onTrainingDash={canAccessTrainingDash ? () => setTrainingDashOpen(true) : undefined}
+          onMonthlyRoster={() => setMonthlyRosterOpen(true)}
           onMasterLogin={!isMaster ? () => setMasterLoginOpen(true) : undefined}
           onLogout={handleLogout}
           onDownloadAmaranth={isMaster ? () => setDownloadModalOpen(true) : undefined}
@@ -301,6 +304,14 @@ export default function Home() {
           employees={employees}
         />
       )}
+
+      <MonthlyRosterModal
+        isOpen={monthlyRosterOpen}
+        onClose={() => setMonthlyRosterOpen(false)}
+        employees={employees}
+        defaultMonth={selectedMonth}
+        year={year}
+      />
 
       {isMaster && (
         <AmaranthDownloadModal
