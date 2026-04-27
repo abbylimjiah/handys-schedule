@@ -71,6 +71,7 @@ export default function MonthlyRosterModal({ isOpen, onClose, employees, default
   const loadAll = async () => {
     setLoading(true);
     const [rec, leg] = await Promise.all([fetchAllRecords(), fetchAllLegacy()]);
+    console.log('[MonthlyRoster] loaded', { records: rec.length, legacy: leg.length, sample: rec.slice(0, 3) });
     setRecords(rec);
     setLegacy(leg);
     setLoading(false);
@@ -162,6 +163,9 @@ export default function MonthlyRosterModal({ isOpen, onClose, employees, default
           <div className="flex items-center gap-3">
             <span className="font-bold">📅 월별 직군 (M1 / M2 / M3 / M4 / A1 / A2)</span>
             <span className="text-slate-300 text-sm">{year}년</span>
+            <span className="text-[10px] bg-slate-600 px-2 py-0.5 rounded">
+              records {records.length} · legacy {legacy.length}
+            </span>
           </div>
           <button onClick={onClose} className="text-slate-300 hover:text-white text-lg">&times;</button>
         </div>
