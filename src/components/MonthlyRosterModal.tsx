@@ -1,9 +1,15 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Employee, branches, Role } from '@/data/mockData';
+import { Employee, branches } from '@/data/mockData';
 import { resolveEmpInfo } from '@/data/amaranth';
-import { loadAllSchedules, BranchSchedule } from '@/lib/scheduleApi';
+import {
+  TrainingRecord,
+  TrainingLegacy,
+  fetchAllRecords,
+  fetchAllLegacy,
+  subscribeToTraining,
+} from '@/lib/trainingApi';
 
 interface Props {
   isOpen: boolean;
@@ -13,74 +19,117 @@ interface Props {
   year: number;
 }
 
-const ROLE_ORDER: Role[] = ['HM', 'Lead', 'Mgr'];
-const ROLE_LABEL: Record<Role, string> = { HM: 'HM', Lead: '리드', Mgr: '매니저' };
-const ROLE_BADGE: Record<Role, string> = {
-  HM: 'bg-indigo-100 text-indigo-700',
-  Lead: 'bg-rose-100 text-rose-700',
-  Mgr: 'bg-gray-100 text-gray-600',
+type Milestone = 'm1' | 'm2' | 'm3' | 'm4' | 'a1' | 'a2';
+const MILESTONES: Milestone[] = ['m1', 'm2', 'm3', 'm4', 'a1', 'a2'];
+const MILESTONE_LABEL: Record<Milestone, string> = {
+  m1: 'M1', m2: 'M2', m3: 'M3', m4: 'M4', a1: 'A1', a2: 'A2',
 };
+const MILESTONE_COLOR: Record<Milestone, string> = {
+  m1: 'border-blue-200',
+  m2: 'border-green-200',
+  m3: 'border-amber-200',
+  m4: 'border-rose-200',
+  a1: 'border-purple-200',
+  a2: 'border-indigo-200',
+};
+const MILESTONE_HEAD: Record<Milestone, string> = {
+  m1: 'bg-blue-50 text-blue-700',
+  m2: 'bg-green-50 text-green-700',
+  m3: 'bg-amber-50 text-amber-700',
+  m4: 'bg-rose-50 text-rose-700',
+  a1: 'bg-purple-50 text-purple-700',
+  a2: 'bg-indigo-50 text-indigo-700',
+};
+
+type ViewMode = 'monthly' | 'cumulative';
 
 export default function MonthlyRosterModal({ isOpen, onClose, employees, defaultMonth, year }: Props) {
   const [month, setMonth] = useState(defaultMonth);
-  const [schedules, setSchedules] = useState<Record<string, BranchSchedule>>({});
+  const [viewMode, setViewMode] = useState<ViewMode>('monthly');
+  const [records, setRecords] = useState<TrainingRecord[]>([]);
+  const [legacy, setLegacy] = useState<TrainingLegacy[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterBranch, setFilterBranch] = useState<string>('all');
-  const [showOnlyActive, setShowOnlyActive] = useState(true);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    setMonth(defaultMonth);
-  }, [isOpen, defaultMonth]);
+  useEffect(() => { if (isOpen) setMonth(defaultMonth); }, [isOpen, defaultMonth]);
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const loadAll = async () => {
     setLoading(true);
-    loadAllSchedules().then(s => {
-      setSchedules(s);
-      setLoading(false);
-    });
+    const [rec, leg] = await Promise.all([fetchAllRecords(), fetchAllLegacy()]);
+    setRecords(rec);
+    setLegacy(leg);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    loadAll();
+    const unsub = subscribeToTraining(() => loadAll());
+    return unsub;
   }, [isOpen]);
 
-  // 선택된 월에 스케줄 셀이 하나라도 있는 사람들 (실제 근무자)
-  const activeKeysByBranch = useMemo(() => {
-    const map: Record<string, Set<string>> = {};
-    for (const b of branches) {
-      const key = `${b.code}-${month}-${year}`;
-      const sched = schedules[key];
-      const active = new Set<string>();
-      if (sched) {
-        for (const empKey of Object.keys(sched)) {
-          const cells = sched[empKey];
-          if (cells && cells.some(c => c && (c.shift || c.memo))) {
-            active.add(empKey);
+  const empByName = useMemo(() => {
+    const map: Record<string, Employee> = {};
+    for (const e of employees) map[e.name.toLowerCase().trim()] = e;
+    return map;
+  }, [employees]);
+
+  const peopleByMilestone = useMemo(() => {
+    const result: Record<Milestone, { name: string; emp?: Employee; branch?: string }[]> = {
+      m1: [], m2: [], m3: [], m4: [], a1: [], a2: [],
+    };
+
+    if (viewMode === 'monthly') {
+      const monthRecords = records.filter(r => r.year === year && r.month === month);
+      for (const ms of MILESTONES) {
+        const seen = new Set<string>();
+        for (const r of monthRecords) {
+          if (r[ms] && !seen.has(r.manager_name.toLowerCase())) {
+            seen.add(r.manager_name.toLowerCase());
+            const emp = empByName[r.manager_name.toLowerCase().trim()];
+            const br = branches.find(b => b.code === r.branch_code);
+            result[ms].push({
+              name: emp?.name || r.manager_name,
+              emp,
+              branch: br ? `${br.code}_${br.name}` : r.branch_code,
+            });
           }
         }
       }
-      map[b.code] = active;
+    } else {
+      const cumulative: Record<string, { counts: Record<Milestone, number>; branchCode?: string }> = {};
+      for (const l of legacy) {
+        const k = l.manager_name.toLowerCase().trim();
+        if (!cumulative[k]) cumulative[k] = { counts: { m1:0,m2:0,m3:0,m4:0,a1:0,a2:0 } };
+        cumulative[k].counts.m1 += l.m1 || 0;
+        cumulative[k].counts.m2 += l.m2 || 0;
+        cumulative[k].counts.m3 += l.m3 || 0;
+        cumulative[k].counts.m4 += l.m4 || 0;
+        cumulative[k].counts.a1 += l.a1 || 0;
+        cumulative[k].counts.a2 += l.a2 || 0;
+      }
+      for (const r of records) {
+        if (r.year < year || (r.year === year && r.month <= month)) {
+          const k = r.manager_name.toLowerCase().trim();
+          if (!cumulative[k]) cumulative[k] = { counts: { m1:0,m2:0,m3:0,m4:0,a1:0,a2:0 } };
+          for (const ms of MILESTONES) if (r[ms]) cumulative[k].counts[ms]++;
+          cumulative[k].branchCode = r.branch_code;
+        }
+      }
+      for (const [k, v] of Object.entries(cumulative)) {
+        const emp = empByName[k];
+        const br = v.branchCode ? branches.find(b => b.code === v.branchCode) : undefined;
+        const branchLabel = br ? `${br.code}_${br.name}` : (emp ? `${emp.code}_${emp.branch}` : '');
+        for (const ms of MILESTONES) {
+          if (v.counts[ms] > 0) {
+            result[ms].push({ name: emp?.name || k, emp, branch: branchLabel });
+          }
+        }
+      }
     }
-    return map;
-  }, [schedules, month, year]);
 
-  const branchesToShow = filterBranch === 'all'
-    ? branches
-    : branches.filter(b => b.code === filterBranch);
-
-  // 통계
-  const stats = useMemo(() => {
-    let total = 0;
-    const byRole: Record<Role, number> = { HM: 0, Lead: 0, Mgr: 0 };
-    for (const b of branchesToShow) {
-      const active = activeKeysByBranch[b.code] || new Set();
-      const branchEmps = employees.filter(e => e.code === b.code);
-      const filtered = showOnlyActive
-        ? branchEmps.filter(e => active.has(`${e.code}-${e.num}`))
-        : branchEmps;
-      total += filtered.length;
-      for (const e of filtered) byRole[e.role] = (byRole[e.role] || 0) + 1;
-    }
-    return { total, byRole };
-  }, [branchesToShow, activeKeysByBranch, employees, showOnlyActive]);
+    for (const ms of MILESTONES) result[ms].sort((a, b) => a.name.localeCompare(b.name));
+    return result;
+  }, [records, legacy, month, year, viewMode, empByName]);
 
   if (!isOpen) return null;
 
@@ -90,21 +139,19 @@ export default function MonthlyRosterModal({ isOpen, onClose, employees, default
       onClick={onClose}
     >
       <div
-        className="modal-content bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="modal-content bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="bg-slate-700 text-white px-5 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <span className="font-bold">📅 월별 직군</span>
-            <span className="text-slate-300 text-sm">{year}년 지점별 직원 현황</span>
+            <span className="font-bold">📅 월별 직군 (M1 / M2 / M3 / M4 / A1 / A2)</span>
+            <span className="text-slate-300 text-sm">{year}년</span>
           </div>
           <button onClick={onClose} className="text-slate-300 hover:text-white text-lg">&times;</button>
         </div>
 
-        {/* Controls */}
         <div className="px-5 py-3 border-b bg-gray-50 flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-wrap">
             {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
               <button
                 key={m}
@@ -117,108 +164,68 @@ export default function MonthlyRosterModal({ isOpen, onClose, employees, default
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <select
-              value={filterBranch}
-              onChange={e => setFilterBranch(e.target.value)}
-              className="text-xs px-2 py-1 border border-gray-200 rounded bg-white"
-            >
-              <option value="all">전체 지점</option>
-              {branches.map(b => (
-                <option key={b.code} value={b.code}>{b.code}_{b.name}</option>
-              ))}
-            </select>
-            <label className="text-xs text-gray-600 flex items-center gap-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showOnlyActive}
-                onChange={e => setShowOnlyActive(e.target.checked)}
-              />
-              {month}월 스케줄 있는 인원만
-            </label>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="inline-flex rounded border border-gray-200 bg-white text-xs overflow-hidden">
+              <button
+                onClick={() => setViewMode('monthly')}
+                className={`px-3 py-1 ${viewMode === 'monthly' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                title="해당 월에 체크된 단계만"
+              >
+                {month}월만
+              </button>
+              <button
+                onClick={() => setViewMode('cumulative')}
+                className={`px-3 py-1 border-l border-gray-200 ${viewMode === 'cumulative' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                title="과거 + 선택 월까지 누적"
+              >
+                {month}월까지 누적
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Stats bar */}
-        <div className="px-5 py-2 bg-indigo-50 border-b flex items-center gap-3 text-xs">
-          <span className="font-semibold text-indigo-800">{month}월 합계</span>
-          <span className="px-2 py-0.5 bg-white rounded border border-indigo-200">총 {stats.total}명</span>
-          <span className="px-2 py-0.5 bg-white rounded border border-indigo-200">HM {stats.byRole.HM}</span>
-          <span className="px-2 py-0.5 bg-white rounded border border-indigo-200">리드 {stats.byRole.Lead}</span>
-          <span className="px-2 py-0.5 bg-white rounded border border-indigo-200">매니저 {stats.byRole.Mgr}</span>
-        </div>
-
-        {/* Body */}
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
             <div className="text-center text-gray-400 py-12 text-sm">로딩 중...</div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {branchesToShow.map(b => {
-                const active = activeKeysByBranch[b.code] || new Set();
-                const branchEmps = employees.filter(e => e.code === b.code);
-                const visible = showOnlyActive
-                  ? branchEmps.filter(e => active.has(`${e.code}-${e.num}`))
-                  : branchEmps;
-                if (visible.length === 0) return null;
-
-                const grouped: Record<Role, Employee[]> = { HM: [], Lead: [], Mgr: [] };
-                for (const e of visible) grouped[e.role]?.push(e);
-                for (const r of ROLE_ORDER) grouped[r].sort((a,b)=>a.num-b.num);
-
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {MILESTONES.map(ms => {
+                const list = peopleByMilestone[ms];
                 return (
-                  <div key={b.code} className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="bg-slate-100 px-3 py-1.5 flex items-center justify-between">
-                      <div className="text-sm font-semibold text-slate-700">
-                        <span className="text-slate-400 text-xs mr-1">{b.code}</span>
-                        {b.name}
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        {visible.length}명{b.to ? ` / TO ${b.to}` : ''}
-                      </div>
+                  <div key={ms} className={`border rounded-lg overflow-hidden ${MILESTONE_COLOR[ms]}`}>
+                    <div className={`px-3 py-2 flex items-center justify-between border-b ${MILESTONE_HEAD[ms]}`}>
+                      <span className="font-bold text-sm">{MILESTONE_LABEL[ms]}</span>
+                      <span className="text-xs font-semibold">{list.length}명</span>
                     </div>
-                    <div className="p-2 space-y-1">
-                      {ROLE_ORDER.map(role => {
-                        if (grouped[role].length === 0) return null;
-                        return (
-                          <div key={role} className="flex items-start gap-2 text-xs">
-                            <span className={`shrink-0 w-12 text-center font-semibold px-1.5 py-0.5 rounded ${ROLE_BADGE[role]}`}>
-                              {ROLE_LABEL[role]}
-                            </span>
-                            <div className="flex flex-wrap gap-1 flex-1">
-                              {grouped[role].map(e => {
-                                const info = resolveEmpInfo(e);
-                                const isActive = active.has(`${e.code}-${e.num}`);
-                                return (
-                                  <span
-                                    key={`${e.code}-${e.num}`}
-                                    title={`${info.realName || '실명없음'} / 사번 ${info.empCode || '-'}\n입사일 ${e.hireDate || '-'}`}
-                                    className={`px-1.5 py-0.5 rounded border text-[11px] ${
-                                      isActive
-                                        ? 'bg-white border-gray-200 text-gray-700'
-                                        : 'bg-gray-50 border-dashed border-gray-200 text-gray-400'
-                                    }`}
-                                  >
-                                    {e.name}
-                                    {info.realName && (
-                                      <span className="text-gray-400 ml-1">({info.realName})</span>
-                                    )}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="p-2 bg-white max-h-72 overflow-y-auto">
+                      {list.length === 0 ? (
+                        <div className="text-[11px] text-gray-300 text-center py-4">해당 인원 없음</div>
+                      ) : (
+                        <ul className="space-y-1">
+                          {list.map((p, i) => {
+                            const info = p.emp ? resolveEmpInfo(p.emp) : { realName: '', empCode: '' };
+                            return (
+                              <li key={`${ms}-${p.name}-${i}`} className="text-xs flex items-baseline justify-between gap-2 border-b border-gray-50 pb-1 last:border-0">
+                                <span className="text-gray-800 font-medium">
+                                  {p.name}
+                                  {info.realName && <span className="text-gray-400 ml-1 text-[10px]">({info.realName})</span>}
+                                </span>
+                                <span className="text-[10px] text-gray-400 shrink-0">{p.branch}</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-          <div className="mt-4 text-[11px] text-gray-400 px-1">
-            ※ "{month}월 스케줄 있는 인원만" 체크 해제하면 현재 등록된 모든 인원을 볼 수 있습니다.
-            점선 박스는 해당 월에 스케줄 데이터가 없는 인원입니다.
+          <div className="mt-4 text-[11px] text-gray-400 px-1 leading-relaxed">
+            ※ <b>"{month}월만"</b>: {year}년 {month}월에 직군 기록이 체크된 인원<br/>
+            ※ <b>"{month}월까지 누적"</b>: 과거 누적(legacy) + {year}년 1월 ~ {month}월까지 한 번이라도 체크된 인원<br/>
+            ※ 데이터는 💪 직군 화면에서 입력된 기록을 기반으로 합니다.
           </div>
         </div>
       </div>
