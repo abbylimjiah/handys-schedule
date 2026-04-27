@@ -50,7 +50,23 @@ export default function MonthlyRosterModal({ isOpen, onClose, employees, default
   const [legacy, setLegacy] = useState<TrainingLegacy[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 모달 열릴 때 기본값 (records 로드 후 보정됨)
   useEffect(() => { if (isOpen) setMonth(defaultMonth); }, [isOpen, defaultMonth]);
+
+  // records 로드 직후, 선택한 월에 데이터 없고 다른 월엔 있으면 가장 최근 데이터 있는 월로 자동 이동
+  const [autoSwitched, setAutoSwitched] = useState(false);
+  useEffect(() => {
+    if (!isOpen) { setAutoSwitched(false); return; }
+    if (autoSwitched || loading) return;
+    const monthsWithData = Array.from(new Set(
+      records.filter(r => r.year === year && (r.m1||r.m2||r.m3||r.m4||r.a1||r.a2)).map(r => r.month)
+    )).sort((a,b)=>b-a);
+    if (monthsWithData.length === 0) return;
+    if (!monthsWithData.includes(month)) {
+      setMonth(monthsWithData[0]);
+    }
+    setAutoSwitched(true);
+  }, [isOpen, loading, records, year, month, autoSwitched]);
 
   const loadAll = async () => {
     setLoading(true);
