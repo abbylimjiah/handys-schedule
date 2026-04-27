@@ -5,7 +5,7 @@ import {
   AdminSettings, ManagedUser, ManagedRole,
   getAdminSettings, saveAdminSettings,
   getMasterPassword, setMasterPassword,
-  getManagedUsers, saveManagedUsers, initManagedUsers,
+  getManagedUsers, saveManagedUsers, initManagedUsers, findMissingManagedUsers,
 } from '@/data/auth';
 import { Employee, branches, defaultEmployees } from '@/data/mockData';
 import { employeeRoster } from '@/data/amaranth';
@@ -58,8 +58,18 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
       (async () => {
         const fetched = await fetchManagedUsers();
         if (fetched && fetched.length > 0) {
-          setUsers(fetched);
-          saveManagedUsers(fetched); // localStorage 싱크
+          // 누락된 직원 자동 병합 (인원관리에 추가됐지만 권한관리에 없는 사람)
+          const missing = findMissingManagedUsers(employees, fetched, employeeRoster);
+          if (missing.length > 0) {
+            const merged = [...fetched, ...missing];
+            setUsers(merged);
+            saveManagedUsers(merged);
+            bulkSaveManagedUsers(merged); // Supabase 동기화
+            console.log(`[권한관리] 누락된 직원 ${missing.length}명 자동 추가:`, missing.map(m => m.englishName));
+          } else {
+            setUsers(fetched);
+            saveManagedUsers(fetched); // localStorage 싱크
+          }
         } else if (managed.length > 0) {
           // 최초 1회 기본 데이터 서버 업로드
           bulkSaveManagedUsers(managed);

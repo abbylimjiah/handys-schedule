@@ -309,24 +309,24 @@ function syncManagedUsersToSettings(users: ManagedUser[]) {
   localStorage.setItem(ADMIN_KEY, JSON.stringify(settings));
 }
 
-// 직원 목록 + amaranth roster에서 ManagedUser 초기화
+// 직원 목록 + amaranth roster에서 ManagedUser 초기화 (병합 방식: 새 직원만 추가)
 export function initManagedUsers(
   employees: Employee[],
   roster: Record<string, { realName: string; empCode: string }>
 ): ManagedUser[] {
   const existing = getManagedUsers();
-  if (existing.length > 0) return existing; // 이미 초기화됨
+  const existingNames = new Set(existing.map(u => u.englishName));
 
-  const seen = new Set<string>();
-  const users: ManagedUser[] = [];
+  const seen = new Set<string>(existingNames);
+  const newUsers: ManagedUser[] = [];
 
   employees.forEach(emp => {
     if (!emp.name.trim() || seen.has(emp.name)) return;
     seen.add(emp.name);
     const info = roster[emp.name];
-    users.push({
+    newUsers.push({
       englishName: emp.name,
-      koreanName: info?.realName || '',
+      koreanName: emp.realName || info?.realName || '',
       email: '',
       role: 'viewer',
       branches: [emp.code],
@@ -336,8 +336,39 @@ export function initManagedUsers(
     });
   });
 
-  saveManagedUsers(users);
-  return users;
+  if (newUsers.length === 0) return existing;
+  const merged = [...existing, ...newUsers];
+  saveManagedUsers(merged);
+  return merged;
+}
+
+// 직원 목록 vs ManagedUser 비교: 누락된 직원 (권한 등록 안 된 사람) 반환
+export function findMissingManagedUsers(
+  employees: Employee[],
+  managedUsers: ManagedUser[],
+  roster: Record<string, { realName: string; empCode: string }>
+): ManagedUser[] {
+  const existingNames = new Set(managedUsers.map(u => u.englishName));
+  const seen = new Set<string>(existingNames);
+  const missing: ManagedUser[] = [];
+
+  employees.forEach(emp => {
+    if (!emp.name.trim() || seen.has(emp.name)) return;
+    seen.add(emp.name);
+    const info = roster[emp.name];
+    missing.push({
+      englishName: emp.name,
+      koreanName: emp.realName || info?.realName || '',
+      email: '',
+      role: 'viewer',
+      branches: [emp.code],
+      homeBranch: emp.code,
+      homeBranchName: emp.branch,
+      status: 'active',
+    });
+  });
+
+  return missing;
 }
 
 // 차단된 사용자 확인
