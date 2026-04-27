@@ -10,6 +10,7 @@ import {
   fetchAllLegacy,
   subscribeToTraining,
 } from '@/lib/trainingApi';
+import { supabase } from '@/lib/supabase';
 
 interface Props {
   isOpen: boolean;
@@ -171,16 +172,38 @@ export default function MonthlyRosterModal({ isOpen, onClose, employees, default
         </div>
 
         {/* 디버그 정보 - 데이터 로딩 상태 */}
-        <div className="px-5 py-2 bg-yellow-50 border-b border-yellow-200 text-xs text-yellow-800 flex items-center gap-3">
+        <div className="px-5 py-2 bg-yellow-50 border-b border-yellow-200 text-xs text-yellow-800 flex items-center gap-3 flex-wrap">
           <span className="font-bold">[DEBUG]</span>
           <span>records: <b>{records.length}</b></span>
           <span>legacy: <b>{legacy.length}</b></span>
           <span>{loading ? '⏳ 로딩 중' : '✓ 로딩 완료'}</span>
-          <span className="text-yellow-600">
-            {records.length === 0
-              ? '⚠️ DB에서 데이터를 못 가져왔어요. (RLS 권한 또는 테이블 문제)'
-              : `${year}년 ${month}월 데이터: ${records.filter(r => r.year === year && r.month === month).length}건`}
-          </span>
+          <button
+            onClick={async () => {
+              if (!supabase) { alert('supabase null'); return; }
+              const lines: string[] = [];
+              lines.push(`URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL || '(없음)'}`);
+              try {
+                const r1 = await supabase.from('training_records').select('*', { count: 'exact', head: false }).limit(5);
+                lines.push(`\n[training_records]`);
+                lines.push(`error: ${r1.error ? JSON.stringify(r1.error) : 'none'}`);
+                lines.push(`count: ${r1.count ?? '?'}, returned: ${r1.data?.length ?? 0}`);
+                if (r1.data && r1.data.length > 0) lines.push(`sample: ${JSON.stringify(r1.data[0])}`);
+              } catch (e: any) { lines.push(`exception: ${e?.message || e}`); }
+              try {
+                const r2 = await supabase.from('training_legacy').select('*', { count: 'exact', head: false }).limit(5);
+                lines.push(`\n[training_legacy]`);
+                lines.push(`error: ${r2.error ? JSON.stringify(r2.error) : 'none'}`);
+                lines.push(`count: ${r2.count ?? '?'}, returned: ${r2.data?.length ?? 0}`);
+                if (r2.data && r2.data.length > 0) lines.push(`sample: ${JSON.stringify(r2.data[0])}`);
+              } catch (e: any) { lines.push(`exception: ${e?.message || e}`); }
+              const txt = lines.join('\n');
+              console.log('[DB 진단]', txt);
+              alert(txt);
+            }}
+            className="px-2 py-1 bg-yellow-600 text-white rounded font-medium hover:bg-yellow-700"
+          >
+            🔍 DB 직접 조회 (진단)
+          </button>
         </div>
 
         <div className="px-5 py-3 border-b bg-gray-50 flex flex-wrap items-center gap-3">
