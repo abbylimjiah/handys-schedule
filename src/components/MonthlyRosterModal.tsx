@@ -170,6 +170,19 @@ export default function MonthlyRosterModal({ isOpen, onClose, employees, default
           <button onClick={onClose} className="text-slate-300 hover:text-white text-lg">&times;</button>
         </div>
 
+        {/* 디버그 정보 - 데이터 로딩 상태 */}
+        <div className="px-5 py-2 bg-yellow-50 border-b border-yellow-200 text-xs text-yellow-800 flex items-center gap-3">
+          <span className="font-bold">[DEBUG]</span>
+          <span>records: <b>{records.length}</b></span>
+          <span>legacy: <b>{legacy.length}</b></span>
+          <span>{loading ? '⏳ 로딩 중' : '✓ 로딩 완료'}</span>
+          <span className="text-yellow-600">
+            {records.length === 0
+              ? '⚠️ DB에서 데이터를 못 가져왔어요. (RLS 권한 또는 테이블 문제)'
+              : `${year}년 ${month}월 데이터: ${records.filter(r => r.year === year && r.month === month).length}건`}
+          </span>
+        </div>
+
         <div className="px-5 py-3 border-b bg-gray-50 flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1 flex-wrap">
             {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => (
