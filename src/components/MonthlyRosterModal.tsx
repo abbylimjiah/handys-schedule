@@ -149,6 +149,46 @@ export default function MonthlyRosterModal({ isOpen, onClose, employees, default
     return result;
   }, [records, legacy, month, year, viewMode, empByName]);
 
+  // 사람별 누적 카운트 (누적 탭에서 표로 표시)
+  const cumulativeRows = useMemo(() => {
+    const map: Record<string, { name: string; emp?: Employee; branchCode?: string; counts: Record<Milestone, number> }> = {};
+    for (const l of legacy) {
+      const k = l.manager_name.toLowerCase().trim();
+      if (!map[k]) map[k] = { name: l.manager_name, emp: empByName[k], counts: { m1:0,m2:0,m3:0,m4:0,a1:0,a2:0 } };
+      map[k].counts.m1 += l.m1 || 0;
+      map[k].counts.m2 += l.m2 || 0;
+      map[k].counts.m3 += l.m3 || 0;
+      map[k].counts.m4 += l.m4 || 0;
+      map[k].counts.a1 += l.a1 || 0;
+      map[k].counts.a2 += l.a2 || 0;
+    }
+    for (const r of records) {
+      if (r.year < year || (r.year === year && r.month <= month)) {
+        const k = r.manager_name.toLowerCase().trim();
+        if (!map[k]) map[k] = { name: r.manager_name, emp: empByName[k], counts: { m1:0,m2:0,m3:0,m4:0,a1:0,a2:0 } };
+        for (const ms of MILESTONES) if (r[ms]) map[k].counts[ms]++;
+        map[k].branchCode = r.branch_code;
+      }
+    }
+    const rows = Object.values(map).map(v => {
+      const emp = v.emp;
+      const br = v.branchCode ? branches.find(b => b.code === v.branchCode) : undefined;
+      const branchLabel = br ? `${br.code}_${br.name}` : (emp ? `${emp.code}_${emp.branch}` : '');
+      const total = MILESTONES.reduce((s, ms) => s + v.counts[ms], 0);
+      const mainTotal = (['m1','m2','m3','m4'] as Milestone[]).reduce((s, ms) => s + v.counts[ms], 0);
+      return {
+        name: emp?.name || v.name,
+        realName: emp ? resolveEmpInfo(emp).realName : '',
+        branch: branchLabel,
+        counts: v.counts,
+        total,
+        mainTotal,
+      };
+    });
+    rows.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+    return rows;
+  }, [records, legacy, year, month, empByName]);
+
   if (!isOpen) return null;
 
   return (
@@ -243,7 +283,7 @@ export default function MonthlyRosterModal({ isOpen, onClose, employees, default
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
             <div className="text-center text-gray-400 py-12 text-sm">로딩 중...</div>
-          ) : (
+          ) : viewMode === 'monthly' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {MILESTONES.map(ms => {
                 const list = peopleByMilestone[ms];
@@ -277,10 +317,80 @@ export default function MonthlyRosterModal({ isOpen, onClose, employees, default
                 );
               })}
             </div>
+          ) : (
+            // 누적 모드: 사람별 카운트 표
+            <div>
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-100 text-slate-700">
+                    <tr>
+                      <th className="px-2 py-2 text-left w-10">#</th>
+                      <th className="px-2 py-2 text-left">이름</th>
+                      <th className="px-2 py-2 text-left">지점</th>
+                      <th className="px-2 py-2 text-center bg-blue-100">M1</th>
+                      <th className="px-2 py-2 text-center bg-green-100">M2</th>
+                      <th className="px-2 py-2 text-center bg-amber-100">M3</th>
+                      <th className="px-2 py-2 text-center bg-rose-100">M4</th>
+                      <th className="px-2 py-2 text-center bg-slate-200 font-bold">M합</th>
+                      <th className="px-2 py-2 text-center bg-purple-100">A1</th>
+                      <th className="px-2 py-2 text-center bg-indigo-100">A2</th>
+                      <th className="px-2 py-2 text-center bg-slate-300 font-bold">총합</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cumulativeRows.length === 0 ? (
+                      <tr><td colSpan={11} className="text-center text-gray-300 py-8">데이터 없음</td></tr>
+                    ) : cumulativeRows.map((row, i) => (
+                      <tr key={`${row.name}-${i}`} className="border-t border-gray-100 hover:bg-gray-50">
+                        <td className="px-2 py-1.5 text-gray-400 font-mono">{i + 1}</td>
+                        <td className="px-2 py-1.5 font-medium text-gray-800">
+                          {row.name}
+                          {row.realName && <span className="text-gray-400 ml-1 text-[10px]">({row.realName})</span>}
+                        </td>
+                        <td className="px-2 py-1.5 text-gray-500 text-[11px]">{row.branch}</td>
+                        <td className={`px-2 py-1.5 text-center ${row.counts.m1 > 0 ? 'text-blue-700 font-semibold bg-blue-50' : 'text-gray-300'}`}>{row.counts.m1 || '-'}</td>
+                        <td className={`px-2 py-1.5 text-center ${row.counts.m2 > 0 ? 'text-green-700 font-semibold bg-green-50' : 'text-gray-300'}`}>{row.counts.m2 || '-'}</td>
+                        <td className={`px-2 py-1.5 text-center ${row.counts.m3 > 0 ? 'text-amber-700 font-semibold bg-amber-50' : 'text-gray-300'}`}>{row.counts.m3 || '-'}</td>
+                        <td className={`px-2 py-1.5 text-center ${row.counts.m4 > 0 ? 'text-rose-700 font-semibold bg-rose-50' : 'text-gray-300'}`}>{row.counts.m4 || '-'}</td>
+                        <td className="px-2 py-1.5 text-center bg-slate-50 font-bold text-slate-700">{row.mainTotal || '-'}</td>
+                        <td className={`px-2 py-1.5 text-center ${row.counts.a1 > 0 ? 'text-purple-700 font-semibold bg-purple-50' : 'text-gray-300'}`}>{row.counts.a1 || '-'}</td>
+                        <td className={`px-2 py-1.5 text-center ${row.counts.a2 > 0 ? 'text-indigo-700 font-semibold bg-indigo-50' : 'text-gray-300'}`}>{row.counts.a2 || '-'}</td>
+                        <td className="px-2 py-1.5 text-center bg-slate-100 font-bold text-slate-800">{row.total || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {cumulativeRows.length > 0 && (
+                    <tfoot className="bg-slate-50 border-t-2 border-slate-300 font-bold text-slate-700">
+                      <tr>
+                        <td colSpan={3} className="px-2 py-2 text-right">합계</td>
+                        {MILESTONES.map((ms, idx) => (
+                          <React.Fragment key={ms}>
+                            <td className="px-2 py-2 text-center">
+                              {cumulativeRows.reduce((s, r) => s + r.counts[ms], 0)}
+                            </td>
+                            {idx === 3 && (
+                              <td className="px-2 py-2 text-center bg-slate-200">
+                                {cumulativeRows.reduce((s, r) => s + r.mainTotal, 0)}
+                              </td>
+                            )}
+                          </React.Fragment>
+                        ))}
+                        <td className="px-2 py-2 text-center bg-slate-300">
+                          {cumulativeRows.reduce((s, r) => s + r.total, 0)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+              <div className="mt-2 text-[11px] text-gray-500">
+                ▸ {cumulativeRows.length}명 · 총합 기준 내림차순 정렬 · 과거(legacy) + {year}년 1월~{month}월 누적
+              </div>
+            </div>
           )}
           <div className="mt-4 text-[11px] text-gray-400 px-1 leading-relaxed">
-            ※ <b>"{month}월만"</b>: {year}년 {month}월에 직군 기록이 체크된 인원<br/>
-            ※ <b>"{month}월까지 누적"</b>: 과거 누적(legacy) + {year}년 1월 ~ {month}월까지 한 번이라도 체크된 인원<br/>
+            ※ <b>"{month}월만"</b>: {year}년 {month}월에 직군 기록이 체크된 인원 (단계별 카드)<br/>
+            ※ <b>"{month}월까지 누적"</b>: 과거(legacy) + {year}년 1월~{month}월 동안 각 단계 몇 번 했는지 (사람별 표)<br/>
             ※ 데이터는 💪 직군 화면에서 입력된 기록을 기반으로 합니다.
           </div>
         </div>
