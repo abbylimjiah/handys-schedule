@@ -1,5 +1,5 @@
 // opssp-schedule Service Worker
-const CACHE_NAME = 'opssp-schedule-v17';
+const CACHE_NAME = 'opssp-schedule-v18';
 const BASE = '/handys-schedule';
 
 const ASSETS = [

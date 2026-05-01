@@ -37,7 +37,7 @@ import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib
 
 export default function Home() {
   const [selectedBranch, setSelectedBranch] = useState('02');
-  const [selectedMonth, setSelectedMonth] = useState(4);
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
   const [employeeModalOpen, setEmployeeModalOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [masterLoginOpen, setMasterLoginOpen] = useState(false);
