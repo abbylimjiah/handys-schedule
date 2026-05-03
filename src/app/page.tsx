@@ -34,6 +34,7 @@ import {
 import AmaranthDownloadModal from '@/components/AmaranthDownloadModal';
 import MonthlyRosterModal from '@/components/MonthlyRosterModal';
 import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib/employeesApi';
+import { pushHistory } from '@/lib/historyStack';
 
 export default function Home() {
   const [selectedBranch, setSelectedBranch] = useState('02');
@@ -150,35 +151,53 @@ export default function Home() {
   // 직군 섹션 편집 권한: master or 해당 지점 HM or 본인
   const canEditTraining = isMaster || isHMBranch || branchEmployees.some(e => e.name.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim());
 
+  // 직원 변경 시 히스토리 기록 헬퍼
+  const recordEmployeeHistory = useCallback((oldEmps: Employee[], affectedBranchCode: string, label: string) => {
+    const snap: Employee[] = JSON.parse(JSON.stringify(oldEmps));
+    pushHistory({
+      kind: 'employee',
+      label,
+      undo: async () => {
+        setEmployees(snap);
+        saveEmployees(snap);
+        await saveBranchEmployees(affectedBranchCode, snap);
+      },
+    });
+  }, []);
+
   const handleEmployeeUpdate = useCallback((emp: Employee, field: string, value: string) => {
     setEmployees(prev => {
+      recordEmployeeHistory(prev, emp.code, `직원 수정 (${emp.name || '신규'} ${field})`);
       const updated = prev.map(e => e.code === emp.code && e.num === emp.num ? { ...e, [field]: value } : e);
       saveEmployees(updated);
       saveBranchEmployees(emp.code, updated);
       return updated;
     });
-  }, []);
+  }, [recordEmployeeHistory]);
 
   const handleEmployeeAdd = useCallback((newEmp: Employee) => {
     setEmployees(prev => {
+      recordEmployeeHistory(prev, newEmp.code, `직원 추가 (${newEmp.name})`);
       const updated = [...prev, newEmp];
       saveEmployees(updated);
       saveBranchEmployees(newEmp.code, updated);
       return updated;
     });
-  }, []);
+  }, [recordEmployeeHistory]);
 
   const handleEmployeeDelete = useCallback((emp: Employee) => {
     setEmployees(prev => {
+      recordEmployeeHistory(prev, emp.code, `직원 삭제 (${emp.name})`);
       const updated = prev.filter(e => !(e.code === emp.code && e.num === emp.num));
       saveEmployees(updated);
       saveBranchEmployees(emp.code, updated);
       return updated;
     });
-  }, []);
+  }, [recordEmployeeHistory]);
 
   const handleEmployeeRenumber = useCallback((branchCode: string) => {
     setEmployees(prev => {
+      recordEmployeeHistory(prev, branchCode, `직원 순서 재정렬 (${branchCode})`);
       const branchEmps = prev.filter(e => e.code === branchCode).sort((a, b) => a.num - b.num);
       const others = prev.filter(e => e.code !== branchCode);
       const renumbered = branchEmps.map((emp, idx) => ({ ...emp, num: idx + 1 }));
@@ -187,7 +206,7 @@ export default function Home() {
       saveBranchEmployees(branchCode, updated);
       return updated;
     });
-  }, []);
+  }, [recordEmployeeHistory]);
 
   const handleLogout = () => { logout(); setCurrentUser(null); };
 

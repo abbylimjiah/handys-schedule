@@ -15,6 +15,7 @@ import CellModal from './CellModal';
 import { loadSchedule, saveSchedule, subscribeToSchedule, loadAllSchedules, BranchSchedule as ApiBranchSchedule } from '@/lib/scheduleApi';
 import { fetchAllMemos, saveDayMemo as saveMemoApi, subscribeToMemos } from '@/lib/memosApi';
 import { getCurrentUser } from '@/data/auth';
+import { pushHistory } from '@/lib/historyStack';
 
 interface ScheduleGridProps {
   branchCode: string;
@@ -110,6 +111,23 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     await saveSchedule(bCode, yr, mo, schedule as ApiBranchSchedule, user?.name);
   }, []);
 
+  // 히스토리에 스케줄 변경 기록 (변경 직전의 스냅샷을 저장)
+  const recordScheduleHistory = useCallback((oldSchedule: BranchSchedule | undefined, label: string) => {
+    if (!oldSchedule) return;
+    const snap: BranchSchedule = JSON.parse(JSON.stringify(oldSchedule));
+    const ck = `${branchCode}-${month}-${year}`;
+    const bCode = branchCode, yr = year, mo = month;
+    pushHistory({
+      kind: 'schedule',
+      label,
+      undo: async () => {
+        setScheduleCache(prev => ({ ...prev, [ck]: snap }));
+        const user = getCurrentUser();
+        await saveSchedule(bCode, yr, mo, snap as ApiBranchSchedule, user?.name);
+      },
+    });
+  }, [branchCode, year, month]);
+
   // Load all schedules on mount (Supabase 우선, localStorage 폴백)
   useEffect(() => {
     (async () => {
@@ -195,6 +213,8 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
   };
 
   const applyBulkShift = useCallback((empKey: string, dayIndex: number) => {
+    const oldSched = scheduleCache[cacheKey] || currentSchedule;
+    recordScheduleHistory(oldSched, `일괄 입력 (${bulkShift === 'DELETE' ? '삭제' : bulkShift})`);
     setScheduleCache(prev => {
       const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
       const empSchedule = [...(branchSchedule[empKey] || [])];
@@ -213,7 +233,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
       persistSchedule(branchCode, year, month, branchSchedule);
       return { ...prev, [cacheKey]: branchSchedule };
     });
-  }, [cacheKey, currentSchedule, bulkShift, persistSchedule, branchCode, year, month]);
+  }, [cacheKey, currentSchedule, scheduleCache, bulkShift, persistSchedule, branchCode, year, month, recordScheduleHistory]);
 
   const handleCellMouseDown = (emp: Employee, dayIndex: number) => {
     if (!bulkMode || !canEdit) return;
@@ -269,6 +289,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
   // 메모 모드: 선택된 모든 셀에 메모 일괄 적용
   const applyBulkMemo = useCallback(() => {
     if (memoSelection.size === 0) return;
+    recordScheduleHistory(scheduleCache[cacheKey] || currentSchedule, `메모 일괄입력 (${memoSelection.size}개)`);
     setScheduleCache(prev => {
       const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
       // cellId → "code-num-dayIdx" 파싱
@@ -287,11 +308,12 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     });
     setMemoSelection(new Set());
     setBulkMemo('');
-  }, [memoSelection, bulkMemo, cacheKey, currentSchedule, persistSchedule, branchCode, year, month]);
+  }, [memoSelection, bulkMemo, cacheKey, currentSchedule, scheduleCache, persistSchedule, branchCode, year, month, recordScheduleHistory]);
 
   // 상신 모드: 선택된 모든 셀의 leaveRequest를 일괄 ON/OFF
   const applyBulkLeaveRequest = useCallback((value: boolean) => {
     if (memoSelection.size === 0) return;
+    recordScheduleHistory(scheduleCache[cacheKey] || currentSchedule, `연차 상신 일괄 ${value ? 'ON' : 'OFF'} (${memoSelection.size}개)`);
     setScheduleCache(prev => {
       const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
       memoSelection.forEach(cellId => {
@@ -308,11 +330,12 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
       return { ...prev, [cacheKey]: branchSchedule };
     });
     setMemoSelection(new Set());
-  }, [memoSelection, cacheKey, currentSchedule, persistSchedule, branchCode, year, month]);
+  }, [memoSelection, cacheKey, currentSchedule, scheduleCache, persistSchedule, branchCode, year, month, recordScheduleHistory]);
 
   const handleSave = (data: CellData) => {
     if (!modalInfo) return;
     const empKey = `${modalInfo.employee.code}-${modalInfo.employee.num}`;
+    recordScheduleHistory(scheduleCache[cacheKey] || currentSchedule, `셀 편집 (${modalInfo.employee.name} ${modalInfo.date}일)`);
     setScheduleCache(prev => {
       const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
       const empSchedule = [...(branchSchedule[empKey] || [])];
@@ -326,6 +349,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
   const handleDelete = () => {
     if (!modalInfo) return;
     const empKey = `${modalInfo.employee.code}-${modalInfo.employee.num}`;
+    recordScheduleHistory(scheduleCache[cacheKey] || currentSchedule, `셀 삭제 (${modalInfo.employee.name} ${modalInfo.date}일)`);
     setScheduleCache(prev => {
       const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
       const empSchedule = [...(branchSchedule[empKey] || [])];
@@ -338,6 +362,18 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
 
   const saveDayMemo = (dayIdx: number, value: string) => {
     const key = `${branchCode}-${month}-${dayIdx}`;
+    const oldValue = dayMemos[key] || '';
+    if (oldValue === value) return; // no change
+    // 히스토리 기록
+    const bCode = branchCode, yr = year, mo = month;
+    pushHistory({
+      kind: 'memo',
+      label: `일별 메모 (${dayIdx + 1}일)`,
+      undo: async () => {
+        setDayMemos(prev => ({ ...prev, [key]: oldValue }));
+        await saveMemoApi(bCode, yr, mo, dayIdx, oldValue);
+      },
+    });
     setDayMemos(prev => ({ ...prev, [key]: value }));
     // Supabase + localStorage 동시 저장
     saveMemoApi(branchCode, year, month, dayIdx, value);
@@ -354,6 +390,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     if (!copiedRow) return;
     if (!canEdit) return;
     const empKey = `${targetEmp.code}-${targetEmp.num}`;
+    recordScheduleHistory(scheduleCache[cacheKey] || currentSchedule, `행 붙여넣기 (${targetEmp.name})`);
     setScheduleCache(prev => {
       const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
       // 복사한 데이터를 목표 행에 적용 (깊은 복사)
@@ -400,6 +437,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
       if (shifts.length === 0) return;
 
       const empKey = `${targetEmp.code}-${targetEmp.num}`;
+      recordScheduleHistory(scheduleCache[cacheKey] || currentSchedule, `클립보드 붙여넣기 (${targetEmp.name})`);
       setScheduleCache(prev => {
         const branchSchedule: BranchSchedule = { ...(prev[cacheKey] || currentSchedule) };
         const empSchedule = [...(branchSchedule[empKey] || [])];

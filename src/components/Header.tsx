@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { CurrentUser } from '@/data/auth';
+import { useHistory, undoLast } from '@/lib/historyStack';
 
 interface HeaderProps {
   branchName: string;
@@ -35,6 +36,33 @@ export default function Header({
 }: HeaderProps) {
   const role = currentUser?.role || 'viewer';
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const { size: historySize, last: lastHistory } = useHistory();
+  const [undoBusy, setUndoBusy] = useState(false);
+  const handleUndo = async () => {
+    if (undoBusy || historySize === 0) return;
+    setUndoBusy(true);
+    const e = await undoLast();
+    setUndoBusy(false);
+    if (e) {
+      // 간단한 토스트 대신 console.log; 추후 토스트 추가 가능
+      console.log('[Undo]', e.label);
+    }
+  };
+  // 키보드: Cmd/Ctrl+Z
+  React.useEffect(() => {
+    const fn = (ev: KeyboardEvent) => {
+      const isUndo = (ev.metaKey || ev.ctrlKey) && !ev.shiftKey && ev.key.toLowerCase() === 'z';
+      if (!isUndo) return;
+      // 입력 필드에서는 기본 undo 동작 우선
+      const t = ev.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || (t as any).isContentEditable)) return;
+      ev.preventDefault();
+      handleUndo();
+    };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historySize, undoBusy]);
   const roleBadge = role === 'master'
     ? { label: 'Master', cls: 'bg-red-100 text-red-700' }
     : role === 'editor'
@@ -75,6 +103,23 @@ export default function Header({
         ) : (
           <div className="px-2 py-1 rounded-full bg-yellow-50 border border-yellow-200 text-yellow-700 text-[10px] md:text-xs font-medium">조회 전용</div>
         )}
+
+        {/* Undo button */}
+        <button
+          onClick={handleUndo}
+          disabled={historySize === 0 || undoBusy}
+          title={historySize === 0 ? '되돌릴 작업 없음' : `되돌리기: ${lastHistory?.label || ''} (${historySize}단계)\nCmd/Ctrl+Z`}
+          className={`px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded flex items-center gap-1 transition-colors ${
+            historySize === 0
+              ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+              : 'bg-amber-500 text-white hover:bg-amber-600'
+          }`}
+        >
+          <span>↩ 되돌리기</span>
+          {historySize > 0 && (
+            <span className="bg-white/30 px-1 rounded text-[10px] font-bold">{historySize}</span>
+          )}
+        </button>
 
         {/* Admin buttons */}
         <div className="flex gap-1 md:gap-2">
