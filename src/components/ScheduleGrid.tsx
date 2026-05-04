@@ -16,6 +16,8 @@ import { loadSchedule, saveSchedule, subscribeToSchedule, loadAllSchedules, Bran
 import { fetchAllMemos, saveDayMemo as saveMemoApi, subscribeToMemos } from '@/lib/memosApi';
 import { getCurrentUser } from '@/data/auth';
 import { pushHistory } from '@/lib/historyStack';
+import { logChange } from '@/lib/changeLogApi';
+import { branches as allBranches } from '@/data/mockData';
 
 interface ScheduleGridProps {
   branchCode: string;
@@ -124,7 +126,29 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
         setScheduleCache(prev => ({ ...prev, [ck]: snap }));
         const user = getCurrentUser();
         await saveSchedule(bCode, yr, mo, snap as ApiBranchSchedule, user?.name);
+        // 되돌리기도 변경 로그에 기록
+        const br = allBranches.find(b => b.code === bCode);
+        logChange({
+          kind: 'schedule',
+          branch_code: bCode,
+          branch_name: br?.name,
+          year: yr,
+          month: mo,
+          action: '되돌리기',
+          label: `↩ ${label}`,
+        });
       },
+    });
+    // 영구 변경 로그도 기록
+    const br = allBranches.find(b => b.code === branchCode);
+    logChange({
+      kind: 'schedule',
+      branch_code: branchCode,
+      branch_name: br?.name,
+      year,
+      month,
+      action: '저장',
+      label,
     });
   }, [branchCode, year, month]);
 
@@ -366,17 +390,30 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     if (oldValue === value) return; // no change
     // 히스토리 기록
     const bCode = branchCode, yr = year, mo = month;
+    const br = allBranches.find(b => b.code === bCode);
     pushHistory({
       kind: 'memo',
       label: `일별 메모 (${dayIdx + 1}일)`,
       undo: async () => {
         setDayMemos(prev => ({ ...prev, [key]: oldValue }));
         await saveMemoApi(bCode, yr, mo, dayIdx, oldValue);
+        logChange({ kind: 'memo', branch_code: bCode, branch_name: br?.name, year: yr, month: mo, action: '되돌리기', label: `↩ 일별 메모 (${dayIdx + 1}일)` });
       },
     });
     setDayMemos(prev => ({ ...prev, [key]: value }));
     // Supabase + localStorage 동시 저장
     saveMemoApi(branchCode, year, month, dayIdx, value);
+    // 영구 변경 로그
+    logChange({
+      kind: 'memo',
+      branch_code: branchCode,
+      branch_name: br?.name,
+      year,
+      month,
+      action: '저장',
+      label: `일별 메모 (${dayIdx + 1}일)`,
+      detail: { dayIdx, before: oldValue, after: value },
+    });
   };
 
   // === 복사/붙여넣기 ===

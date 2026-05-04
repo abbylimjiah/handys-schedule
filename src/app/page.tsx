@@ -33,8 +33,10 @@ import {
 } from '@/data/auth';
 import AmaranthDownloadModal from '@/components/AmaranthDownloadModal';
 import MonthlyRosterModal from '@/components/MonthlyRosterModal';
+import ChangeLogModal from '@/components/ChangeLogModal';
 import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib/employeesApi';
 import { pushHistory } from '@/lib/historyStack';
+import { logChange } from '@/lib/changeLogApi';
 
 export default function Home() {
   const [selectedBranch, setSelectedBranch] = useState('02');
@@ -45,6 +47,7 @@ export default function Home() {
   const [trainingDashOpen, setTrainingDashOpen] = useState(false);
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [monthlyRosterOpen, setMonthlyRosterOpen] = useState(false);
+  const [changeLogOpen, setChangeLogOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>(defaultEmployees);
   const [hydrated, setHydrated] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -154,6 +157,7 @@ export default function Home() {
   // 직원 변경 시 히스토리 기록 헬퍼
   const recordEmployeeHistory = useCallback((oldEmps: Employee[], affectedBranchCode: string, label: string) => {
     const snap: Employee[] = JSON.parse(JSON.stringify(oldEmps));
+    const br = branches.find(b => b.code === affectedBranchCode);
     pushHistory({
       kind: 'employee',
       label,
@@ -161,7 +165,16 @@ export default function Home() {
         setEmployees(snap);
         saveEmployees(snap);
         await saveBranchEmployees(affectedBranchCode, snap);
+        logChange({ kind: 'employee', branch_code: affectedBranchCode, branch_name: br?.name, action: '되돌리기', label: `↩ ${label}` });
       },
+    });
+    // 영구 변경 로그
+    logChange({
+      kind: 'employee',
+      branch_code: affectedBranchCode,
+      branch_name: br?.name,
+      action: '저장',
+      label,
     });
   }, []);
 
@@ -255,6 +268,7 @@ export default function Home() {
           onAdminPanel={isMaster ? () => setAdminPanelOpen(true) : undefined}
           onTrainingDash={canAccessTrainingDash ? () => setTrainingDashOpen(true) : undefined}
           onMonthlyRoster={() => setMonthlyRosterOpen(true)}
+          onChangeLog={() => setChangeLogOpen(true)}
           onMasterLogin={!isMaster ? () => setMasterLoginOpen(true) : undefined}
           onLogout={handleLogout}
           onDownloadAmaranth={isMaster ? () => setDownloadModalOpen(true) : undefined}
@@ -330,6 +344,12 @@ export default function Home() {
         employees={employees}
         defaultMonth={selectedMonth}
         year={year}
+      />
+
+      <ChangeLogModal
+        isOpen={changeLogOpen}
+        onClose={() => setChangeLogOpen(false)}
+        defaultBranchCode={selectedBranch}
       />
 
       {isMaster && (

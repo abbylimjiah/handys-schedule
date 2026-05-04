@@ -21,6 +21,7 @@ interface HeaderProps {
   onAdminPanel?: () => void;
   onTrainingDash?: () => void;
   onMonthlyRoster?: () => void;
+  onChangeLog?: () => void;
   onMasterLogin?: () => void;
   onLogout: () => void;
   onDownloadAmaranth?: () => void;
@@ -31,7 +32,7 @@ export default function Header({
   branchName, branchCode, month, year,
   workingCount, offCount, totalCount, branchTo,
   isEditPeriod, canEdit, isHMBranch, currentUser,
-  onManageEmployees, onAdminPanel, onTrainingDash, onMonthlyRoster, onMasterLogin, onLogout,
+  onManageEmployees, onAdminPanel, onTrainingDash, onMonthlyRoster, onChangeLog, onMasterLogin, onLogout,
   onDownloadAmaranth, onDownloadAllAmaranth,
 }: HeaderProps) {
   const role = currentUser?.role || 'viewer';
@@ -134,6 +135,9 @@ export default function Header({
           )}
           {onMonthlyRoster && (
             <button onClick={onMonthlyRoster} className="px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded bg-purple-600 text-white hover:bg-purple-500">📅 월별 직군</button>
+          )}
+          {onChangeLog && (
+            <button onClick={onChangeLog} className="px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded bg-slate-600 text-white hover:bg-slate-700">📜 이력</button>
           )}
           {/* Amaranth download - Master only */}
           {onDownloadAmaranth && (
