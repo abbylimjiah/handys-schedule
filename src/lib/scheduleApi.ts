@@ -93,8 +93,10 @@ export function subscribeToSchedule(
     return () => {}; // noop
   }
 
+  // 같은 키로 여러 subscriber가 동시 호출되어도 충돌 안나게 unique suffix 추가
+  const uid = Math.random().toString(36).slice(2, 10);
   const channel = supabase
-    .channel(`schedule-${branchCode}-${year}-${month}`)
+    .channel(`schedule-${branchCode}-${year}-${month}-${uid}`)
     .on(
       'postgres_changes',
       {
