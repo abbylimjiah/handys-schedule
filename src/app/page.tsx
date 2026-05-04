@@ -132,31 +132,40 @@ export default function Home() {
   const branchEmployees = useMemo(() => employees.filter(e => e.code === selectedBranch), [employees, selectedBranch]);
   const scheduleData = useMemo(() => generateScheduleData(selectedBranch, selectedMonth, year, employees), [selectedBranch, selectedMonth, employees]);
 
-  // 헤더의 오늘 근무자/휴무자 카운트용 실제 스케줄 로드
+  // 헤더의 오늘 근무자/휴무자 카운트용 실제 스케줄 로드 (안전 가드 포함)
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const loaded = await loadSchedule(selectedBranch, year, selectedMonth);
-      if (!cancelled) setActualSchedule(loaded);
-    })();
+    try {
+      (async () => {
+        try {
+          const loaded = await loadSchedule(selectedBranch, year, selectedMonth);
+          if (!cancelled) setActualSchedule(loaded);
+        } catch (e) { console.warn('loadSchedule failed', e); }
+      })();
+    } catch (e) { console.warn('schedule load setup failed', e); }
     // 실시간 구독으로 다른 사람 변경도 즉시 반영
-    const unsub = subscribeToSchedule(selectedBranch, year, selectedMonth, (sched) => {
-      if (!cancelled) setActualSchedule(sched);
-    });
-    return () => { cancelled = true; unsub(); };
+    let unsub = () => {};
+    try {
+      unsub = subscribeToSchedule(selectedBranch, year, selectedMonth, (sched) => {
+        if (!cancelled) setActualSchedule(sched);
+      });
+    } catch (e) { console.warn('subscribe failed', e); }
+    return () => { cancelled = true; try { unsub(); } catch {} };
   }, [selectedBranch, selectedMonth]);
 
   const today = new Date();
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === selectedMonth;
   const todayIndex = isCurrentMonth ? today.getDate() - 1 : 0;
   let workingCount = 0, offCount = 0;
-  // 실제 저장된 스케줄 우선, 없으면 기본 데이터 사용
-  const scheduleForCount = actualSchedule || scheduleData;
-  branchEmployees.forEach(emp => {
-    const cell = scheduleForCount[`${emp.code}-${emp.num}`]?.[todayIndex];
-    if (cell && cell.shift && cell.shift.startsWith('#')) offCount++;
-    else if (cell && cell.shift) workingCount++;
-  });
+  // 실제 저장된 스케줄 우선, 없으면 기본 데이터 사용 (둘 다 없으면 빈 객체)
+  const scheduleForCount: Record<string, CellData[]> = actualSchedule || scheduleData || {};
+  try {
+    branchEmployees.forEach(emp => {
+      const cell = scheduleForCount[`${emp.code}-${emp.num}`]?.[todayIndex];
+      if (cell && cell.shift && cell.shift.startsWith('#')) offCount++;
+      else if (cell && cell.shift) workingCount++;
+    });
+  } catch (e) { console.warn('count failed', e); }
 
   const settings = getAdminSettings();
   const editPeriod = checkEditPeriod() || settings.editPeriodOverride;
