@@ -35,6 +35,8 @@ import AmaranthDownloadModal from '@/components/AmaranthDownloadModal';
 import MonthlyRosterModal from '@/components/MonthlyRosterModal';
 import ChangeLogModal from '@/components/ChangeLogModal';
 import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib/employeesApi';
+import { loadSchedule, subscribeToSchedule } from '@/lib/scheduleApi';
+import { CellData } from '@/data/mockData';
 import { pushHistory } from '@/lib/historyStack';
 import { logChange } from '@/lib/changeLogApi';
 
@@ -48,6 +50,7 @@ export default function Home() {
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [monthlyRosterOpen, setMonthlyRosterOpen] = useState(false);
   const [changeLogOpen, setChangeLogOpen] = useState(false);
+  const [actualSchedule, setActualSchedule] = useState<Record<string, CellData[]> | null>(null);
   const [employees, setEmployees] = useState<Employee[]>(defaultEmployees);
   const [hydrated, setHydrated] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -129,12 +132,28 @@ export default function Home() {
   const branchEmployees = useMemo(() => employees.filter(e => e.code === selectedBranch), [employees, selectedBranch]);
   const scheduleData = useMemo(() => generateScheduleData(selectedBranch, selectedMonth, year, employees), [selectedBranch, selectedMonth, employees]);
 
+  // 헤더의 오늘 근무자/휴무자 카운트용 실제 스케줄 로드
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const loaded = await loadSchedule(selectedBranch, year, selectedMonth);
+      if (!cancelled) setActualSchedule(loaded);
+    })();
+    // 실시간 구독으로 다른 사람 변경도 즉시 반영
+    const unsub = subscribeToSchedule(selectedBranch, year, selectedMonth, (sched) => {
+      if (!cancelled) setActualSchedule(sched);
+    });
+    return () => { cancelled = true; unsub(); };
+  }, [selectedBranch, selectedMonth]);
+
   const today = new Date();
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === selectedMonth;
   const todayIndex = isCurrentMonth ? today.getDate() - 1 : 0;
   let workingCount = 0, offCount = 0;
+  // 실제 저장된 스케줄 우선, 없으면 기본 데이터 사용
+  const scheduleForCount = actualSchedule || scheduleData;
   branchEmployees.forEach(emp => {
-    const cell = scheduleData[`${emp.code}-${emp.num}`]?.[todayIndex];
+    const cell = scheduleForCount[`${emp.code}-${emp.num}`]?.[todayIndex];
     if (cell && cell.shift && cell.shift.startsWith('#')) offCount++;
     else if (cell && cell.shift) workingCount++;
   });
