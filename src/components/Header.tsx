@@ -19,6 +19,7 @@ interface HeaderProps {
   hasTempGrant?: boolean; // 임시 편집권 활성 여부
   currentUser: CurrentUser | null;
   onManageEmployees?: () => void;
+  empCodeMissingCount?: number; // 사번 누락 직원 수 (전 지점 통합)
   onAdminPanel?: () => void;
   onTrainingDash?: () => void;
   onMonthlyRoster?: () => void;
@@ -33,7 +34,7 @@ export default function Header({
   branchName, branchCode, month, year,
   workingCount, offCount, totalCount, branchTo,
   isEditPeriod, canEdit, isHMBranch, hasTempGrant, currentUser,
-  onManageEmployees, onAdminPanel, onTrainingDash, onMonthlyRoster, onChangeLog, onMasterLogin, onLogout,
+  onManageEmployees, empCodeMissingCount = 0, onAdminPanel, onTrainingDash, onMonthlyRoster, onChangeLog, onMasterLogin, onLogout,
   onDownloadAmaranth, onDownloadAllAmaranth,
 }: HeaderProps) {
   const role = currentUser?.role || 'viewer';
@@ -129,7 +130,18 @@ export default function Header({
         {/* Admin buttons */}
         <div className="flex gap-1 md:gap-2">
           {onManageEmployees && (
-            <button onClick={onManageEmployees} className="px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded bg-slate-700 text-white hover:bg-slate-600">인원 관리</button>
+            <button
+              onClick={onManageEmployees}
+              className="relative px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded bg-slate-700 text-white hover:bg-slate-600"
+              title={empCodeMissingCount > 0 ? `사번 누락 ${empCodeMissingCount}명 — 클릭해서 입력` : undefined}
+            >
+              인원 관리
+              {empCodeMissingCount > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center px-1 py-0 text-[9px] font-bold rounded-full bg-red-500 text-white min-w-[14px] h-[14px]">
+                  ⚠️{empCodeMissingCount}
+                </span>
+              )}
+            </button>
           )}
           {onAdminPanel && (
             <button onClick={onAdminPanel} className="px-2 md:px-3 py-1 md:py-1.5 text-[10px] md:text-xs font-medium rounded bg-red-600 text-white hover:bg-red-500">권한 관리</button>

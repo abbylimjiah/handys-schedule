@@ -36,6 +36,7 @@ import AmaranthDownloadModal from '@/components/AmaranthDownloadModal';
 import MonthlyRosterModal from '@/components/MonthlyRosterModal';
 import ChangeLogModal from '@/components/ChangeLogModal';
 import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib/employeesApi';
+import { employeeRoster } from '@/data/amaranth';
 import { fetchManagedUsers } from '@/lib/usersApi';
 import { saveManagedUsers } from '@/data/auth';
 import { loadSchedule, subscribeToSchedule } from '@/lib/scheduleApi';
@@ -230,7 +231,19 @@ export default function Home() {
   const handleEmployeeUpdate = useCallback((emp: Employee, field: string, value: string) => {
     setEmployees(prev => {
       recordEmployeeHistory(prev, emp.code, `직원 수정 (${emp.name || '신규'} ${field})`);
-      const updated = prev.map(e => e.code === emp.code && e.num === emp.num ? { ...e, [field]: value } : e);
+      const updated = prev.map(e => {
+        if (e.code !== emp.code || e.num !== emp.num) return e;
+        const next = { ...e, [field]: value };
+        // 닉네임 변경 시 employeeRoster에서 사번/실명 자동 채움 (빈 필드만)
+        if (field === 'name' && value) {
+          const roster = employeeRoster[value];
+          if (roster) {
+            if (!next.empCode && roster.empCode) next.empCode = roster.empCode;
+            if (!next.realName && roster.realName) next.realName = roster.realName;
+          }
+        }
+        return next;
+      });
       saveEmployees(updated);
       saveBranchEmployees(emp.code, updated);
       return updated;
@@ -240,9 +253,21 @@ export default function Home() {
   const handleEmployeeAdd = useCallback((newEmp: Employee) => {
     setEmployees(prev => {
       recordEmployeeHistory(prev, newEmp.code, `직원 추가 (${newEmp.name})`);
-      const updated = [...prev, newEmp];
+      // 신규 직원 추가 시에도 employeeRoster에서 사번/실명 자동 채움
+      let augmented = newEmp;
+      if (newEmp.name) {
+        const roster = employeeRoster[newEmp.name];
+        if (roster) {
+          augmented = {
+            ...newEmp,
+            realName: newEmp.realName || roster.realName || '',
+            empCode: newEmp.empCode || roster.empCode || '',
+          };
+        }
+      }
+      const updated = [...prev, augmented];
       saveEmployees(updated);
-      saveBranchEmployees(newEmp.code, updated);
+      saveBranchEmployees(augmented.code, updated);
       return updated;
     });
   }, [recordEmployeeHistory]);
@@ -315,6 +340,7 @@ export default function Home() {
           hasTempGrant={hasTempGrant}
           currentUser={currentUser}
           onManageEmployees={canManage ? () => setEmployeeModalOpen(true) : undefined}
+          empCodeMissingCount={branchEmployees.filter(e => e.name && !(e.empCode || employeeRoster[e.name]?.empCode)).length}
           onAdminPanel={isMaster ? () => setAdminPanelOpen(true) : undefined}
           onTrainingDash={canAccessTrainingDash ? () => setTrainingDashOpen(true) : undefined}
           onMonthlyRoster={() => setMonthlyRosterOpen(true)}
