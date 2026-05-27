@@ -30,11 +30,14 @@ import {
   getAdminSettings,
   getHMBranch,
   getUserHomeBranch,
+  hasActiveTemporaryGrant,
 } from '@/data/auth';
 import AmaranthDownloadModal from '@/components/AmaranthDownloadModal';
 import MonthlyRosterModal from '@/components/MonthlyRosterModal';
 import ChangeLogModal from '@/components/ChangeLogModal';
 import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib/employeesApi';
+import { fetchManagedUsers } from '@/lib/usersApi';
+import { saveManagedUsers } from '@/data/auth';
 import { loadSchedule, subscribeToSchedule } from '@/lib/scheduleApi';
 import { CellData } from '@/data/mockData';
 import { pushHistory } from '@/lib/historyStack';
@@ -99,6 +102,23 @@ export default function Home() {
 
     // 실시간 구독: 다른 사람이 직원 정보 수정하면 자동 반영
     const unsubscribe = subscribeToEmployees(emps => setEmployees(emps));
+
+    // ManagedUsers 페치 (임시 편집권/role 등 모든 사용자에게 필요)
+    // 구독은 AdminPanel(마스터)에서만 - 채널 충돌 방지
+    (async () => {
+      try {
+        const fetched = await fetchManagedUsers();
+        if (fetched && fetched.length > 0) {
+          saveManagedUsers(fetched);
+          // 페치 완료 후 currentUser 재계산 (role 갱신 + 화면 재렌더링 → 임시권 배지 반영)
+          const u = getCurrentUser();
+          if (u) setCurrentUser(u);
+        }
+      } catch (e) {
+        console.warn('ManagedUsers fetch 실패:', e);
+      }
+    })();
+
     return unsubscribe;
   }, []);
 
@@ -175,6 +195,7 @@ export default function Home() {
   const canManage = canManageEmployees(currentUser);
   const isMaster = currentUser?.role === 'master';
   const isHMBranch = currentUser ? getHMBranch(currentUser.name, employees) === selectedBranch : false;
+  const hasTempGrant = currentUser ? hasActiveTemporaryGrant(currentUser.name, selectedBranch) : false;
   // 전체 HM 여부 (대시보드 접근용)
   const isAnyHM = currentUser ? employees.some(e => e.role === 'HM' && e.name.toLowerCase().trim() === (currentUser.name || '').toLowerCase().trim()) : false;
   // 모든 로그인 사용자 대시보드 접근 가능 (편집은 master만)
@@ -291,6 +312,7 @@ export default function Home() {
           isEditPeriod={editPeriod}
           canEdit={canEdit}
           isHMBranch={isHMBranch}
+          hasTempGrant={hasTempGrant}
           currentUser={currentUser}
           onManageEmployees={canManage ? () => setEmployeeModalOpen(true) : undefined}
           onAdminPanel={isMaster ? () => setAdminPanelOpen(true) : undefined}

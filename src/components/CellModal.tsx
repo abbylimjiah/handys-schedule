@@ -39,7 +39,33 @@ export default function CellModal({
   const [activeTab, setActiveTab] = useState<'regular' | 'half' | 'quarter' | 'off' | 'special'>('regular');
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // 현재 시프트의 base(D6/D9/M/E/N) 추출 — 반차/반반차/시프트별 휴무 모두 같은 base로 환원
+  const getBaseShift = (s: ShiftType): 'D6' | 'D9' | 'M' | 'E' | 'N' | null => {
+    if (!s) return null;
+    const m = s.match(/^(D6|D9|M|E|N)(\/반반|\/반|\/단)?$/);
+    if (m) return m[1] as 'D6' | 'D9' | 'M' | 'E' | 'N';
+    if (s === '#(주)') return 'D9';
+    if (s === '#(야)') return 'E';
+    if (s === '#(중)') return 'M';
+    if (s === '#(주6)') return 'D6';
+    if (s === '#(심야)') return 'N';
+    return null;
+  };
+
+  // 탭 클릭 시 base를 유지하며 자동 매핑 (예: E → 반차 탭 클릭 → E/반)
+  const handleTabClick = (newTab: 'regular' | 'half' | 'quarter' | 'off' | 'special') => {
+    const base = getBaseShift(shift);
+    if (base) {
+      if (newTab === 'regular') setShift(base as ShiftType);
+      else if (newTab === 'half') setShift(`${base}/반` as ShiftType);
+      else if (newTab === 'quarter') setShift(`${base}/반반` as ShiftType);
+      // 휴무/기타 탭은 자동 변경하지 않음 (연차/병가/파견 등 명시적 선택 필요)
+    }
+    setActiveTab(newTab);
+  };
+
   useEffect(() => {
+    if (!isOpen) return;
     setShift(cellData.shift);
     setLeaveRequest(cellData.leaveRequest);
     setKakaoT(cellData.kakaoT);
@@ -49,10 +75,12 @@ export default function CellModal({
       if (cellData.shift.includes('반반')) setActiveTab('quarter');
       else if (cellData.shift.includes('/반') || cellData.shift === 'D9/단') setActiveTab('half');
       else if (cellData.shift.startsWith('#')) setActiveTab('off');
-      else if (cellData.shift === '파견') setActiveTab('special');
+      else if (cellData.shift === '파견' || cellData.shift === '출장' || cellData.shift === '외근') setActiveTab('special');
       else setActiveTab('regular');
+    } else {
+      setActiveTab('regular');
     }
-  }, [cellData]);
+  }, [cellData, isOpen]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -120,7 +148,7 @@ export default function CellModal({
               {tabs.map(tab => (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => handleTabClick(tab.key)}
                   className={`px-2 py-1 text-[10px] font-semibold rounded transition-colors ${
                     activeTab === tab.key
                       ? 'bg-slate-700 text-white'

@@ -3,9 +3,10 @@ export type ShiftType =
   | 'D6' | 'D9' | 'M' | 'E' | 'N'
   | 'D6/반' | 'D9/반' | 'M/반' | 'E/반' | 'N/반'
   | 'D6/반반' | 'D9/반반' | 'M/반반' | 'E/반반' | 'N/반반'
-  | '#' | '#(연차)' | '#(대체)' | '#(병가)' | '#(공가)' | '#(보건)'
+  | '#' | '#(주)' | '#(야)' | '#(중)' | '#(주6)' | '#(심야)'
+  | '#(연차)' | '#(대체)' | '#(병가)' | '#(공가)' | '#(보건)'
   | '#(경조)' | '#(생일)' | '#(출산)' | '#(육아)' | '#(태아)' | '#(창립기념일)' | '#(장기근속)'
-  | '파견' | 'D9/단'
+  | '파견' | 'D9/단' | '출장' | '외근'
   | '';
 
 export type Role = 'Lead' | 'HM' | 'Mgr';
@@ -370,7 +371,12 @@ export const shiftCategories = {
     { code: 'N/반반' as ShiftType, label: 'N/반반', desc: 'N 반반차' },
   ],
   off: [
-    { code: '#' as ShiftType, label: '#', desc: '휴무' },
+    { code: '#(주)' as ShiftType, label: '휴(주)', desc: 'D9 휴무 → 아마란스 004' },
+    { code: '#(야)' as ShiftType, label: '휴(야)', desc: 'E 휴무 → 아마란스 008' },
+    { code: '#(중)' as ShiftType, label: '휴(중)', desc: 'M 휴무 → 아마란스 009' },
+    { code: '#(주6)' as ShiftType, label: '휴(주6)', desc: 'D6 휴무 → 아마란스 010' },
+    { code: '#(심야)' as ShiftType, label: '휴(심야)', desc: 'N 휴무 → 아마란스 011' },
+    { code: '#' as ShiftType, label: '#', desc: '기본 휴무(구버전, 004로 처리)' },
     { code: '#(연차)' as ShiftType, label: '연차', desc: '연차' },
     { code: '#(대체)' as ShiftType, label: '대체', desc: '대체휴무' },
     { code: '#(병가)' as ShiftType, label: '병가', desc: '병가' },
@@ -385,7 +391,9 @@ export const shiftCategories = {
     { code: '#(장기근속)' as ShiftType, label: '장기', desc: '장기근속 휴가' },
   ],
   special: [
-    { code: '파견' as ShiftType, label: '파견', desc: '파견/출장' },
+    { code: '파견' as ShiftType, label: '파견', desc: '파견근무' },
+    { code: '출장' as ShiftType, label: '출장', desc: '출장' },
+    { code: '외근' as ShiftType, label: '외근', desc: '외근' },
     { code: 'D9/단' as ShiftType, label: 'D9/단', desc: '임산부 단축근무' },
   ],
 };
@@ -448,17 +456,22 @@ export function getShiftStyle(shift: ShiftType): { bg: string; text: string; lab
   if (shift === 'E/반') return { bg: 'bg-orange-50', text: 'text-orange-600', label: 'E반' };
   if (shift === 'N/반') return { bg: 'bg-indigo-100', text: 'text-indigo-700', label: 'N반' };
 
-  // Quarter shifts (반반차)
-  if (shift === 'D6/반반') return { bg: 'bg-yellow-50', text: 'text-yellow-600', label: 'D6반반' };
-  if (shift === 'D9/반반') return { bg: 'bg-blue-50/60', text: 'text-blue-500', label: 'D9반반' };
-  if (shift === 'M/반반') return { bg: 'bg-violet-50/60', text: 'text-violet-500', label: 'M반반' };
-  if (shift === 'E/반반') return { bg: 'bg-orange-50/60', text: 'text-orange-500', label: 'E반반' };
-  if (shift === 'N/반반') return { bg: 'bg-indigo-50', text: 'text-indigo-600', label: 'N반반' };
+  // Quarter shifts (반반차) - 부모 근무 색 + 점선 테두리로 반차와 시각적 구분
+  if (shift === 'D6/반반') return { bg: 'bg-yellow-200 border border-dashed border-yellow-700', text: 'text-yellow-900', label: 'D6반반' };
+  if (shift === 'D9/반반') return { bg: 'bg-blue-100 border border-dashed border-blue-600', text: 'text-blue-800', label: 'D9반반' };
+  if (shift === 'M/반반') return { bg: 'bg-violet-100 border border-dashed border-violet-600', text: 'text-violet-800', label: 'M반반' };
+  if (shift === 'E/반반') return { bg: 'bg-orange-100 border border-dashed border-orange-600', text: 'text-orange-800', label: 'E반반' };
+  if (shift === 'N/반반') return { bg: 'bg-indigo-200 border border-dashed border-indigo-700', text: 'text-indigo-900', label: 'N반반' };
 
-  // Off types
+  // Off types (shift-specific OFF: 아마란스 코드별 분리)
+  if (shift === '#(주)') return { bg: 'bg-blue-50', text: 'text-blue-700', label: '휴주' };
+  if (shift === '#(야)') return { bg: 'bg-orange-50', text: 'text-orange-700', label: '휴야' };
+  if (shift === '#(중)') return { bg: 'bg-violet-50', text: 'text-violet-700', label: '휴중' };
+  if (shift === '#(주6)') return { bg: 'bg-yellow-50', text: 'text-yellow-800', label: '휴주6' };
+  if (shift === '#(심야)') return { bg: 'bg-indigo-50', text: 'text-indigo-700', label: '휴심야' };
   if (shift === '#') return { bg: 'bg-gray-100', text: 'text-gray-500', label: '#' };
   if (shift === '#(연차)') return { bg: 'bg-pink-100', text: 'text-pink-700', label: '연차' };
-  if (shift === '#(대체)') return { bg: 'bg-slate-200', text: 'text-slate-600', label: '대체' };
+  if (shift === '#(대체)') return { bg: 'bg-green-100', text: 'text-green-700', label: '대체' };
   if (shift === '#(병가)') return { bg: 'bg-red-100', text: 'text-red-600', label: '병가' };
   if (shift === '#(공가)') return { bg: 'bg-sky-100', text: 'text-sky-700', label: '공가' };
   if (shift === '#(보건)') return { bg: 'bg-lime-100', text: 'text-lime-700', label: '보건' };
@@ -472,6 +485,8 @@ export function getShiftStyle(shift: ShiftType): { bg: string; text: string; lab
 
   // Special
   if (shift === '파견') return { bg: 'bg-stone-200', text: 'text-stone-700', label: '파견' };
+  if (shift === '출장') return { bg: 'bg-amber-200', text: 'text-amber-900', label: '출장' };
+  if (shift === '외근') return { bg: 'bg-teal-100', text: 'text-teal-800', label: '외근' };
   if (shift === 'D9/단') return { bg: 'bg-blue-50', text: 'text-blue-500', label: 'D9단' };
 
   return { bg: 'bg-white', text: 'text-gray-400', label: '' };
@@ -493,7 +508,12 @@ export const shiftDescriptions: Record<string, string> = {
   'M/반반': 'M 반반차(전/후)',
   'E/반반': 'E 반반차(전/후)',
   'N/반반': 'N 반반차(전/후)',
-  '#': '휴무',
+  '#': '휴무 (구버전 / 아마란스 004)',
+  '#(주)': 'D9(주간) 휴무 / 아마란스 004',
+  '#(야)': 'E(야간) 휴무 / 아마란스 008',
+  '#(중)': 'M(중간) 휴무 / 아마란스 009',
+  '#(주6)': 'D6(주간6) 휴무 / 아마란스 010',
+  '#(심야)': 'N(심야) 휴무 / 아마란스 011',
   '#(연차)': '연차',
   '#(대체)': '대체휴무',
   '#(병가)': '병가',
@@ -506,6 +526,8 @@ export const shiftDescriptions: Record<string, string> = {
   '#(태아)': '임산부 태아 건강검진',
   '#(창립기념일)': '창립기념일 연차',
   '#(장기근속)': '장기근속 휴가',
-  '파견': '파견/출장',
+  '파견': '파견근무',
+  '출장': '출장',
+  '외근': '외근',
   'D9/단': '임산부 단축근무',
 };

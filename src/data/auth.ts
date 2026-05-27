@@ -17,6 +17,16 @@ export interface EditorPermission {
   branches: string[]; // ['02', '06'] 또는 ['*'] (전체)
 }
 
+// 임시 편집권 히스토리 항목 (해제/대체된 과거 권한 기록)
+export interface TempGrantHistoryEntry {
+  startDate: string;     // YYYY-MM-DD
+  endDate: string;       // YYYY-MM-DD
+  grantedAt: string;     // ISO
+  grantedBy?: string;
+  revokedAt: string;     // ISO
+  reason: 'revoked' | 'replaced';  // 토글로 해제 / 새 권한으로 대체
+}
+
 export interface AdminSettings {
   editPeriodOverride: boolean;
   grantedEditors: string[]; // 하위호환 (기존 데이터)
@@ -65,6 +75,26 @@ export function saveAdminSettings(settings: AdminSettings) {
   // grantedEditors도 같이 업데이트 (하위호환)
   settings.grantedEditors = settings.editorPermissions.map(ep => ep.name);
   localStorage.setItem(ADMIN_KEY, JSON.stringify(settings));
+}
+
+// ─── 임시 편집권한 (ManagedUser 기반: Supabase 동기화) ───
+function todayYMD(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// 활성 임시권 체크 (이름 + 지점은 본인 소속 지점만 허용)
+export function hasActiveTemporaryGrant(name: string, branchCode: string): boolean {
+  const users = getManagedUsers();
+  const user = users.find(u => u.englishName === name);
+  if (!user || !user.tempGrantActive) return false;
+  if (user.homeBranch !== branchCode) return false; // 본인 소속 지점만
+  if (!user.tempGrantStart || !user.tempGrantEnd) return false;
+  const today = todayYMD();
+  return user.tempGrantStart <= today && user.tempGrantEnd >= today;
 }
 
 // 에디터 권한 조회
@@ -218,7 +248,7 @@ export function isHMForBranch(userName: string, branchCode: string, employees?: 
   return hmBranch === branchCode;
 }
 
-// Permissions (지점별 + HM 자동편집)
+// Permissions (지점별 + HM 자동편집 + 임시 편집권)
 export function canEditSchedule(user: CurrentUser | null, branchCode?: string, employees?: Employee[]): boolean {
   if (!user) return false;
   if (user.role === 'master') return true;
@@ -235,6 +265,11 @@ export function canEditSchedule(user: CurrentUser | null, branchCode?: string, e
   // HM 자동 편집: 편집기간 중 본인 소속 지점만 편집 가능
   if (periodOk && branchCode) {
     if (isHMForBranch(user.name, branchCode, employees)) return true;
+  }
+
+  // 임시 편집권: 편집기간 외에도 활성 임시권이 있으면 본인 소속 지점만 편집 가능
+  if (branchCode && hasActiveTemporaryGrant(user.name, branchCode)) {
+    return true;
   }
 
   return false;
@@ -261,6 +296,11 @@ export function canDeleteSchedule(user: CurrentUser | null, branchCode?: string,
     if (isHMForBranch(user.name, branchCode, employees)) return true;
   }
 
+  // 임시 편집권: 본인 소속 지점에 한해 삭제도 허용
+  if (branchCode && hasActiveTemporaryGrant(user.name, branchCode)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -280,6 +320,13 @@ export interface ManagedUser {
   homeBranch: string;       // 소속 지점 코드
   homeBranchName: string;   // 소속 지점 이름
   status: 'active' | 'blocked';
+  // 임시 편집권 (1인 1활성, 본인 소속 지점만)
+  tempGrantActive?: boolean;
+  tempGrantStart?: string;          // YYYY-MM-DD
+  tempGrantEnd?: string;            // YYYY-MM-DD
+  tempGrantAt?: string;             // ISO (부여 시각)
+  tempGrantBy?: string;             // 부여한 마스터 이름
+  tempGrantHistory?: TempGrantHistoryEntry[];
 }
 
 const MANAGED_USERS_KEY = 'handys-managed-users';
@@ -383,4 +430,76 @@ export function getManagedUserRole(name: string): ManagedRole {
   const users = getManagedUsers();
   const user = users.find(u => u.englishName === name);
   return user?.role || 'viewer';
+}
+
+// ─── 임시 편집권 부여/토글 (ManagedUser 직접 수정) ───
+// 사용처: AdminPanel에서 호출 후 saveManagedUsers + bulkSaveManagedUsers로 동기화
+
+// 임시권 부여 (1인 1활성: 기존 활성권은 history로 이동)
+export function applyGrantTemporaryEdit(
+  users: ManagedUser[],
+  englishName: string,
+  startDate: string,
+  endDate: string,
+  grantedBy?: string,
+): ManagedUser[] {
+  return users.map(u => {
+    if (u.englishName !== englishName) return u;
+    const history = [...(u.tempGrantHistory || [])];
+    // 기존 활성권 또는 부여이력이 남아있으면 history에 보존 (replaced)
+    if (u.tempGrantStart && u.tempGrantEnd && u.tempGrantAt) {
+      history.push({
+        startDate: u.tempGrantStart,
+        endDate: u.tempGrantEnd,
+        grantedAt: u.tempGrantAt,
+        grantedBy: u.tempGrantBy,
+        revokedAt: new Date().toISOString(),
+        reason: 'replaced',
+      });
+    }
+    return {
+      ...u,
+      tempGrantActive: true,
+      tempGrantStart: startDate,
+      tempGrantEnd: endDate,
+      tempGrantAt: new Date().toISOString(),
+      tempGrantBy: grantedBy,
+      tempGrantHistory: history,
+    };
+  });
+}
+
+// 임시권 토글 (active만 변경, 레코드는 유지 - 다시 켤 수 있음)
+export function applyToggleTemporaryGrant(users: ManagedUser[], englishName: string): ManagedUser[] {
+  return users.map(u => {
+    if (u.englishName !== englishName) return u;
+    if (!u.tempGrantStart) return u; // 부여된 적 없으면 무시
+    return { ...u, tempGrantActive: !u.tempGrantActive };
+  });
+}
+
+// 임시권 영구 삭제 (history로 이동, 활성 필드 비움)
+export function applyRevokeTemporaryGrant(users: ManagedUser[], englishName: string): ManagedUser[] {
+  return users.map(u => {
+    if (u.englishName !== englishName) return u;
+    if (!u.tempGrantStart) return u;
+    const history = [...(u.tempGrantHistory || [])];
+    history.push({
+      startDate: u.tempGrantStart,
+      endDate: u.tempGrantEnd || '',
+      grantedAt: u.tempGrantAt || '',
+      grantedBy: u.tempGrantBy,
+      revokedAt: new Date().toISOString(),
+      reason: 'revoked',
+    });
+    return {
+      ...u,
+      tempGrantActive: false,
+      tempGrantStart: undefined,
+      tempGrantEnd: undefined,
+      tempGrantAt: undefined,
+      tempGrantBy: undefined,
+      tempGrantHistory: history,
+    };
+  });
 }

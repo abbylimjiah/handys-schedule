@@ -35,6 +35,8 @@ interface Aggregated {
   total_m1: number; total_m2: number; total_m3: number; total_m4: number;
   total_a1: number; total_a2: number;
   main_total: number; // M1+M2+M3+M4
+  aux_total: number; // A1+A2
+  grand_total: number; // M+A 전체
 }
 
 export default function TrainingDashboard({ isOpen, onClose, currentUser, employees }: Props) {
@@ -125,6 +127,8 @@ export default function TrainingDashboard({ isOpen, onClose, currentUser, employ
         rec_a1: rec.a1, rec_a2: rec.a2,
         total_m1, total_m2, total_m3, total_m4, total_a1, total_a2,
         main_total: total_m1 + total_m2 + total_m3 + total_m4,
+        aux_total: total_a1 + total_a2,
+        grand_total: total_m1 + total_m2 + total_m3 + total_m4 + total_a1 + total_a2,
       });
     }
     return out;
@@ -194,11 +198,11 @@ export default function TrainingDashboard({ isOpen, onClose, currentUser, employ
 
   const downloadExcel = () => {
     // CSV 다운로드 (엑셀에서 바로 열림, UTF-8 BOM 포함)
-    const headers = ['지점코드','지점명','이름','직책','M1','M2','M3','M4','주직군총합','A1','A2'];
+    const headers = ['지점코드','지점명','이름','직책','M1','M2','M3','M4','주직군총합','A1','A2','보조직군총합','전체총합'];
     const rows = filtered.map(r => [
       r.branch_code, r.branch_name, r.manager_name, r.role,
       r.total_m1, r.total_m2, r.total_m3, r.total_m4, r.main_total,
-      r.total_a1, r.total_a2,
+      r.total_a1, r.total_a2, r.aux_total, r.grand_total,
     ]);
     const csv = '\uFEFF' + [headers, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -270,6 +274,8 @@ export default function TrainingDashboard({ isOpen, onClose, currentUser, employ
                   <th className="border-l-2 border-gray-400 border-y border-r border-gray-200 px-2 py-1.5 bg-indigo-100 text-indigo-800">주직군 총합</th>
                   <th className="border-l-2 border-gray-400 border-y border-r border-gray-200 px-1 py-1.5 bg-purple-50 text-purple-700">A1</th>
                   <th className="border border-gray-200 px-1 py-1.5 bg-purple-50 text-purple-700">A2</th>
+                  <th className="border-l-2 border-gray-400 border-y border-r border-gray-200 px-2 py-1.5 bg-fuchsia-100 text-fuchsia-800">보조직군 총합</th>
+                  <th className="border-l-2 border-gray-400 border-y border-r border-gray-200 px-2 py-1.5 bg-amber-100 text-amber-800">전체 총합</th>
                   {isMaster && <th className="border border-gray-200 px-2 py-1.5 bg-gray-100">편집</th>}
                 </tr>
               </thead>
@@ -313,6 +319,12 @@ export default function TrainingDashboard({ isOpen, onClose, currentUser, employ
                           )}
                         </td>
                       ))}
+                      <td className="border-l-2 border-gray-400 border-y border-r border-gray-200 px-2 py-1 text-center bg-fuchsia-50 font-bold text-fuchsia-800">
+                        {r.aux_total}
+                      </td>
+                      <td className="border-l-2 border-gray-400 border-y border-r border-gray-200 px-2 py-1 text-center bg-amber-50 font-bold text-amber-800">
+                        {r.grand_total}
+                      </td>
                       {isMaster && (
                         <td className="border border-gray-200 px-2 py-1 text-center whitespace-nowrap">
                           {isEditing ? (

@@ -18,6 +18,13 @@ import { getCurrentUser } from '@/data/auth';
 import { pushHistory } from '@/lib/historyStack';
 import { logChange } from '@/lib/changeLogApi';
 import { branches as allBranches } from '@/data/mockData';
+import {
+  ensureMonthlyRoster,
+  addToMonthlyRoster,
+  removeFromMonthlyRoster,
+  getMonthlyRoster,
+  empKeyOf,
+} from '@/lib/monthlyRosterApi';
 
 interface ScheduleGridProps {
   branchCode: string;
@@ -170,10 +177,43 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     }
   }, [branchCode, month, year]);
 
-  const branchEmployees = useMemo(
+  // 월별 명단 자동 시드 (없으면 이전 달 복사, 없으면 마스터 명단)
+  const [rosterVersion, setRosterVersion] = useState(0); // 명단 변경 시 강제 리렌더
+  const monthlyRoster = useMemo(() => {
+    return ensureMonthlyRoster(branchCode, year, month, employees);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchCode, year, month, employees, rosterVersion]);
+
+  // 현 지점의 마스터 명단 (월 필터 적용 전)
+  const allBranchEmployees = useMemo(
     () => employees.filter(e => e.code === branchCode),
     [employees, branchCode]
   );
+
+  // 이번 달 표시할 직원 (월별 명단으로 필터)
+  const branchEmployees = useMemo(
+    () => allBranchEmployees.filter(e => monthlyRoster.includes(empKeyOf(e))),
+    [allBranchEmployees, monthlyRoster]
+  );
+
+  // 이번 달 명단에서 빠진 직원 목록 (다시 추가 가능)
+  const missingThisMonth = useMemo(
+    () => allBranchEmployees.filter(e => !monthlyRoster.includes(empKeyOf(e))),
+    [allBranchEmployees, monthlyRoster]
+  );
+
+  const handleRemoveFromMonth = useCallback((emp: Employee) => {
+    if (!canEdit) return;
+    if (!window.confirm(`${emp.name || '직원'} 님을 ${month}월 명단에서만 제외하시겠습니까?\n(다른 달에는 그대로 유지됩니다)`)) return;
+    removeFromMonthlyRoster(branchCode, year, month, empKeyOf(emp));
+    setRosterVersion(v => v + 1);
+  }, [branchCode, year, month, canEdit]);
+
+  const handleAddToMonth = useCallback((emp: Employee) => {
+    if (!canEdit) return;
+    addToMonthlyRoster(branchCode, year, month, empKeyOf(emp));
+    setRosterVersion(v => v + 1);
+  }, [branchCode, year, month, canEdit]);
 
   const days = useMemo(() => getMonthInfo(year, month), [year, month]);
   const cacheKey = `${branchCode}-${month}-${year}`;
@@ -448,11 +488,14 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
       'D6', 'D9', 'M', 'E', 'N',
       'D6/반', 'D9/반', 'M/반', 'E/반', 'N/반',
       'D6/반반', 'D9/반반', 'M/반반', 'E/반반', 'N/반반',
-      '#', '#(연차)', '#(대체)', '#(병가)', '#(공가)', '#(보건)',
+      '#', '#(주)', '#(야)', '#(중)', '#(주6)', '#(심야)',
+      '#(연차)', '#(대체)', '#(병가)', '#(공가)', '#(보건)',
       '#(경조)', '#(생일)', '#(출산)', '#(육아)', '#(태아)', '#(창립기념일)', '#(장기근속)',
-      '파견', 'D9/단',
+      '파견', '출장', '외근', 'D9/단',
     ]);
     const korMap: Record<string, ShiftType> = {
+      '휴(주)': '#(주)', '휴(야)': '#(야)', '휴(중)': '#(중)', '휴(주6)': '#(주6)', '휴(심야)': '#(심야)',
+      '휴주': '#(주)', '휴야': '#(야)', '휴중': '#(중)', '휴주6': '#(주6)', '휴심야': '#(심야)',
       '연차': '#(연차)', '대체': '#(대체)', '병가': '#(병가)', '공가': '#(공가)',
       '보건': '#(보건)', '경조': '#(경조)', '생일': '#(생일)', '출산': '#(출산)',
       '육아': '#(육아)', '태아': '#(태아)', '창립': '#(창립기념일)', '장기': '#(장기근속)', '장기근속': '#(장기근속)',
@@ -533,7 +576,9 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
       else if (s === 'E' || s === 'E/반' || s === 'E/반반') c.E++;
       else if (s === 'N' || s === 'N/반' || s === 'N/반반') c.N++;
       else if (s === '파견') c.D9++;
-      if (s === '#') { c['#']++; c.off++; }
+      // 일반 휴무 (시프트별 OFF 코드 포함): #, #(주), #(야), #(중), #(주6), #(심야)
+      const isPlainOff = s === '#' || s === '#(주)' || s === '#(야)' || s === '#(중)' || s === '#(주6)' || s === '#(심야)';
+      if (isPlainOff) { c['#']++; c.off++; }
       else if (s.startsWith('#(')) { c.leave++; c.off++; }
       else { c.work++; }
     });
@@ -549,7 +594,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     }
   };
 
-  if (branchEmployees.length === 0) {
+  if (branchEmployees.length === 0 && allBranchEmployees.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-gray-400">
         해당 지점에 직원 데이터가 없습니다.
@@ -717,6 +762,26 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
         )}
       </div>}
 
+      {/* 이번 달 명단에서 빠진 직원 (다시 추가 가능) */}
+      {canEdit && missingThisMonth.length > 0 && (
+        <div className="bg-amber-50 border-y border-amber-200 px-4 py-2 flex items-start gap-2 text-xs">
+          <span className="text-amber-700 font-semibold mt-0.5 shrink-0">📅 {month}월 제외:</span>
+          <div className="flex flex-wrap gap-1.5">
+            {missingThisMonth.map(emp => (
+              <button
+                key={`${emp.code}-${emp.num}`}
+                onClick={() => handleAddToMonth(emp)}
+                className="px-2 py-0.5 rounded border border-amber-300 bg-white hover:bg-amber-100 text-amber-800 transition-colors"
+                title={`${emp.name || '(미정)'} 님을 ${month}월 명단에 다시 추가`}
+              >
+                + {emp.name || '(미정)'}
+              </button>
+            ))}
+          </div>
+          <span className="ml-auto text-amber-600/70 text-[10px] shrink-0">클릭하면 이번 달 명단에 다시 추가</span>
+        </div>
+      )}
+
       {/* ===== MAIN SCHEDULE GRID ===== */}
       <div
         ref={gridContainerRef}
@@ -724,7 +789,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        <table className={`schedule-table border-collapse text-xs min-w-max ${bulkMode ? 'select-none' : ''}`}>
+        <table className={`schedule-table border-separate border-spacing-0 text-xs min-w-max ${bulkMode ? 'select-none' : ''}`}>
           <thead>
             <tr>
               <th className="bg-slate-700 text-white px-1 py-1.5 text-center font-semibold w-8 border-r border-slate-600 sticky top-0 left-0 z-40">No</th>
@@ -878,6 +943,13 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
                               title="엑셀/구글시트에서 복사한 내용 붙여넣기"
                             >
                               📄
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRemoveFromMonth(emp); }}
+                              className="text-[11px] px-1.5 py-0.5 rounded border border-rose-300 bg-rose-50 hover:bg-rose-200 text-rose-700"
+                              title={`${month}월 명단에서만 제외 (다른 달은 그대로 유지)`}
+                            >
+                              📅✖
                             </button>
                           </div>
                         )}

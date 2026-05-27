@@ -42,10 +42,17 @@ export async function fetchEmployees(): Promise<Employee[]> {
         try { localStorage.setItem(LOCAL_KEY, JSON.stringify(emps)); } catch {}
         return emps;
       }
-      // 서버에 없으면 기본 데이터 업로드
+      // 서버 응답이 비었으면 절대 자동 덮어쓰기 하지 않음 (RLS/네트워크 이슈로 빈 응답 시 전직원 날아감 방지).
+      // 기존 localStorage 캐시 또는 코드 기본값으로 폴백.
       if (!error && data && data.length === 0) {
-        await bulkUploadEmployees(defaultEmployees);
-        return defaultEmployees;
+        try {
+          const stored = localStorage.getItem(LOCAL_KEY);
+          if (stored) {
+            const parsed: Employee[] = JSON.parse(stored);
+            if (parsed.length > 0) return parsed.map(backfillFromRoster);
+          }
+        } catch {}
+        return defaultEmployees.map(backfillFromRoster);
       }
     } catch (e) {
       console.warn('Supabase employees load failed', e);

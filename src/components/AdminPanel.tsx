@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  AdminSettings, ManagedUser, ManagedRole,
+  AdminSettings, ManagedUser, ManagedRole, TempGrantHistoryEntry,
   getAdminSettings, saveAdminSettings,
   getMasterPassword, setMasterPassword,
   getManagedUsers, saveManagedUsers, initManagedUsers, findMissingManagedUsers,
+  applyGrantTemporaryEdit, applyToggleTemporaryGrant, applyRevokeTemporaryGrant,
+  getCurrentUser,
 } from '@/data/auth';
 import { Employee, branches, defaultEmployees } from '@/data/mockData';
 import { employeeRoster } from '@/data/amaranth';
@@ -44,6 +46,12 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
   const [newEnglish, setNewEnglish] = useState('');
   const [newKorean, setNewKorean] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  // 임시 편집권한
+  const [showGrantForm, setShowGrantForm] = useState(false);
+  const [grantTarget, setGrantTarget] = useState('');
+  const [grantStart, setGrantStart] = useState('');
+  const [grantEnd, setGrantEnd] = useState('');
+  const [showGrantHistory, setShowGrantHistory] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -209,6 +217,54 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
     saveAdminSettings(updated);
   };
 
+  // ─── 임시 편집권한 핸들러 ───
+  const todayYMD = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
+  const handleGrantTemp = () => {
+    if (!grantTarget || !grantStart || !grantEnd) return;
+    if (grantStart > grantEnd) { alert('시작일이 종료일보다 늦을 수 없습니다'); return; }
+    const grantedBy = getCurrentUser()?.name;
+    const updated = applyGrantTemporaryEdit(users, grantTarget, grantStart, grantEnd, grantedBy);
+    setUsers(updated);
+    saveManagedUsers(updated);
+    bulkSaveManagedUsers(updated);
+    setGrantTarget(''); setGrantStart(''); setGrantEnd('');
+    setShowGrantForm(false);
+  };
+
+  const handleToggleTemp = (englishName: string) => {
+    const updated = applyToggleTemporaryGrant(users, englishName);
+    setUsers(updated);
+    saveManagedUsers(updated);
+    bulkSaveManagedUsers(updated);
+  };
+
+  const handleRevokeTemp = (englishName: string) => {
+    if (!confirm('이 임시 편집권을 해제하시겠습니까?\n(히스토리에 기록되며, 다시 사용하려면 새로 부여해야 합니다)')) return;
+    const updated = applyRevokeTemporaryGrant(users, englishName);
+    setUsers(updated);
+    saveManagedUsers(updated);
+    bulkSaveManagedUsers(updated);
+  };
+
+  // 현재 임시권 보유자 (활성/비활성 모두 포함, 부여 이력은 있음)
+  const grantedUsers = users.filter(u => u.tempGrantStart && u.tempGrantEnd);
+
+  // 히스토리 (해제/대체된 과거 기록)
+  const historyEntries: Array<TempGrantHistoryEntry & { englishName: string; koreanName: string }> = users
+    .flatMap(u => (u.tempGrantHistory || []).map(h => ({ ...h, englishName: u.englishName, koreanName: u.koreanName })))
+    .sort((a, b) => (b.revokedAt || '').localeCompare(a.revokedAt || ''));
+
+  const grantStatusLabel = (u: ManagedUser): { label: string; cls: string } => {
+    if (!u.tempGrantStart || !u.tempGrantEnd) return { label: '-', cls: 'bg-gray-100 text-gray-400' };
+    if (u.tempGrantEnd < todayYMD) return { label: '만료', cls: 'bg-gray-200 text-gray-500' };
+    if (u.tempGrantStart > todayYMD) return { label: '예정', cls: 'bg-blue-100 text-blue-700' };
+    return { label: '기간내', cls: 'bg-green-100 text-green-700' };
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl mx-4 max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -258,6 +314,156 @@ export default function AdminPanel({ isOpen, onClose, employees }: AdminPanelPro
             {pwMsg && <span className={`text-xs ${pwMsg.type === 'ok' ? 'text-green-600' : 'text-red-500'}`}>{pwMsg.text}</span>}
           </div>
         )}
+
+        {/* 임시 편집권한 섹션 */}
+        <div className="px-5 py-3 border-b bg-amber-50/40">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-bold text-amber-800">🕐 임시 편집권한</h3>
+              <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">정규 편집기간 외에도 본인 소속 지점만 편집 허용</span>
+            </div>
+            <button
+              onClick={() => setShowGrantForm(!showGrantForm)}
+              className="text-xs px-3 py-1 bg-amber-600 text-white rounded hover:bg-amber-700 font-medium whitespace-nowrap"
+            >
+              {showGrantForm ? '닫기' : '+ 부여'}
+            </button>
+          </div>
+
+          {showGrantForm && (
+            <div className="flex gap-2 items-end flex-wrap mb-2 p-3 bg-white rounded-lg border-2 border-amber-300">
+              <div>
+                <label className="block text-[10px] text-gray-500 mb-0.5">대상 헤드 *</label>
+                <select
+                  value={grantTarget}
+                  onChange={e => setGrantTarget(e.target.value)}
+                  className="text-sm border rounded px-2 py-1.5 w-52 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                >
+                  <option value="">선택...</option>
+                  {users
+                    .filter(u => u.status === 'active' && u.role !== 'master' && u.homeBranch)
+                    .sort((a, b) => (a.koreanName || a.englishName).localeCompare(b.koreanName || b.englishName, 'ko'))
+                    .map(u => (
+                      <option key={u.englishName} value={u.englishName}>
+                        {u.koreanName || u.englishName} · {u.homeBranchName}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-500 mb-0.5">시작일 *</label>
+                <input
+                  type="date"
+                  value={grantStart}
+                  onChange={e => setGrantStart(e.target.value)}
+                  className="text-sm border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-gray-500 mb-0.5">종료일 *</label>
+                <input
+                  type="date"
+                  value={grantEnd}
+                  min={grantStart || undefined}
+                  onChange={e => setGrantEnd(e.target.value)}
+                  className="text-sm border rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                />
+              </div>
+              <button
+                onClick={handleGrantTemp}
+                disabled={!grantTarget || !grantStart || !grantEnd}
+                className={`px-4 py-1.5 text-sm rounded font-semibold ${
+                  grantTarget && grantStart && grantEnd
+                    ? 'bg-amber-600 text-white hover:bg-amber-700'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                부여
+              </button>
+              <button onClick={() => { setShowGrantForm(false); setGrantTarget(''); setGrantStart(''); setGrantEnd(''); }} className="px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700">취소</button>
+            </div>
+          )}
+
+          {/* 현재 부여된 임시권 */}
+          {grantedUsers.length === 0 ? (
+            <div className="text-xs text-gray-400 px-1 py-1">현재 부여된 임시 편집권이 없습니다</div>
+          ) : (
+            <div className="space-y-1">
+              {grantedUsers.map(u => {
+                const status = grantStatusLabel(u);
+                const isInRange = u.tempGrantStart! <= todayYMD && u.tempGrantEnd! >= todayYMD;
+                const effectivelyActive = !!u.tempGrantActive && isInRange;
+                return (
+                  <div
+                    key={u.englishName}
+                    className={`flex items-center gap-2 text-xs px-3 py-2 rounded border ${
+                      effectivelyActive ? 'bg-amber-50 border-amber-300' : 'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    <span className="font-semibold text-gray-800 w-24 truncate" title={u.englishName}>
+                      {u.koreanName || u.englishName}
+                    </span>
+                    <span className="text-gray-600 w-32 truncate" title={u.homeBranchName}>{u.homeBranchName}</span>
+                    <span className="font-mono text-gray-700">{u.tempGrantStart} ~ {u.tempGrantEnd}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${status.cls}`}>{status.label}</span>
+                    <div className="ml-auto flex gap-1.5 items-center">
+                      <button
+                        onClick={() => handleToggleTemp(u.englishName)}
+                        title={u.tempGrantActive ? '클릭하면 OFF' : '클릭하면 ON'}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
+                          u.tempGrantActive
+                            ? 'bg-amber-600 text-white hover:bg-amber-700'
+                            : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                        }`}
+                      >
+                        {u.tempGrantActive ? '● ON' : '○ OFF'}
+                      </button>
+                      <button
+                        onClick={() => handleRevokeTemp(u.englishName)}
+                        className="px-2 py-1 rounded text-[10px] text-red-600 hover:bg-red-50 font-medium"
+                        title="영구 해제 (히스토리에 기록)"
+                      >
+                        ✕ 해제
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 히스토리 */}
+          {historyEntries.length > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={() => setShowGrantHistory(!showGrantHistory)}
+                className="text-[11px] text-gray-500 hover:text-gray-700 font-medium"
+              >
+                {showGrantHistory ? '▼' : '▶'} 부여 히스토리 ({historyEntries.length})
+              </button>
+              {showGrantHistory && (
+                <div className="mt-1 space-y-1 max-h-40 overflow-y-auto pr-1">
+                  {historyEntries.map((h, i) => (
+                    <div key={`${h.englishName}-${h.grantedAt}-${i}`} className="text-[11px] px-2 py-1 bg-white rounded border border-gray-100 text-gray-500 flex gap-2 items-center flex-wrap">
+                      <span className="w-20 font-medium text-gray-700 truncate">{h.koreanName || h.englishName}</span>
+                      <span className="font-mono">{h.startDate}~{h.endDate}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] ${
+                        h.reason === 'replaced' ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {h.reason === 'replaced' ? '교체' : '해제'}
+                      </span>
+                      {h.revokedAt && (
+                        <span className="text-gray-400 text-[10px] ml-auto">
+                          {new Date(h.revokedAt).toLocaleString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Search + Add */}
         <div className="px-5 py-3 border-b flex items-center gap-3">

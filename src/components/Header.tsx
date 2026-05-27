@@ -16,6 +16,7 @@ interface HeaderProps {
   isEditPeriod: boolean;
   canEdit: boolean;
   isHMBranch: boolean; // 현재 지점의 HM인지
+  hasTempGrant?: boolean; // 임시 편집권 활성 여부
   currentUser: CurrentUser | null;
   onManageEmployees?: () => void;
   onAdminPanel?: () => void;
@@ -31,7 +32,7 @@ interface HeaderProps {
 export default function Header({
   branchName, branchCode, month, year,
   workingCount, offCount, totalCount, branchTo,
-  isEditPeriod, canEdit, isHMBranch, currentUser,
+  isEditPeriod, canEdit, isHMBranch, hasTempGrant, currentUser,
   onManageEmployees, onAdminPanel, onTrainingDash, onMonthlyRoster, onChangeLog, onMasterLogin, onLogout,
   onDownloadAmaranth, onDownloadAllAmaranth,
 }: HeaderProps) {
@@ -95,6 +96,9 @@ export default function Header({
             <div className="px-2 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 text-[10px] md:text-xs font-medium">편집 가능</div>
             {isHMBranch && currentUser?.role !== 'master' && (
               <div className="px-2 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] md:text-xs font-medium">HM</div>
+            )}
+            {hasTempGrant && currentUser?.role !== 'master' && (
+              <div className="px-2 py-1 rounded-full bg-amber-50 border border-amber-300 text-amber-700 text-[10px] md:text-xs font-medium" title="임시 편집권한 활성">🕐 임시권</div>
             )}
           </div>
         ) : isEditPeriod && isHMBranch ? (
