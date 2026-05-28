@@ -395,7 +395,7 @@ export const shiftCategories = {
     { code: '출장' as ShiftType, label: '출장', desc: '출장' },
     { code: '외근' as ShiftType, label: '외근', desc: '외근' },
     { code: 'D9/단' as ShiftType, label: 'D9/단', desc: '임산부 단축근무(주간)' },
-    { code: 'N/단' as ShiftType, label: 'N/단', desc: '임산부 단축근무(야간)' },
+    { code: 'N/단' as ShiftType, label: 'N/단', desc: '임산부 단축근무(야간) 예:15~22' },
   ],
 };
 
@@ -532,5 +532,5 @@ export const shiftDescriptions: Record<string, string> = {
   '출장': '출장',
   '외근': '외근',
   'D9/단': '임산부 단축근무 (주간)',
-  'N/단': '임산부 단축근무 (야간)',
+  'N/단': '임산부 단축근무 (야간) — 예: 15:00~22:00 (본인 사정에 맞춰 조정 가능)',
 };
