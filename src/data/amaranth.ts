@@ -387,7 +387,7 @@ export function downloadRawTextExcel(
       if (label.startsWith('#(') && label.endsWith(')')) {
         label = label.slice(2, -1);
       }
-      if (cell.memo) label += `(${cell.memo})`;
+      // 메모는 다운로드에 포함하지 않음 (매니저 참고용이라 출력 시 제외)
       row.push(label);
       tagRow.push(classifyCell(cell));
     }
@@ -458,7 +458,7 @@ export function downloadAllRawTextExcel(
         if (label.startsWith('#(') && label.endsWith(')')) {
           label = label.slice(2, -1);
         }
-        if (cell.memo) label += `(${cell.memo})`;
+        // 메모는 다운로드에 포함하지 않음 (매니저 참고용이라 출력 시 제외)
         row.push(label);
         tagRow.push(classifyCell(cell));
       }
