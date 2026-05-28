@@ -6,7 +6,7 @@ export type ShiftType =
   | '#' | '#(주)' | '#(야)' | '#(중)' | '#(주6)' | '#(심야)'
   | '#(연차)' | '#(대체)' | '#(병가)' | '#(공가)' | '#(보건)'
   | '#(경조)' | '#(생일)' | '#(출산)' | '#(육아)' | '#(태아)' | '#(창립기념일)' | '#(장기근속)'
-  | '파견' | 'D9/단' | '출장' | '외근'
+  | '파견' | 'D9/단' | 'N/단' | '출장' | '외근'
   | '';
 
 export type Role = 'Lead' | 'HM' | 'Mgr';
@@ -394,7 +394,8 @@ export const shiftCategories = {
     { code: '파견' as ShiftType, label: '파견', desc: '파견근무' },
     { code: '출장' as ShiftType, label: '출장', desc: '출장' },
     { code: '외근' as ShiftType, label: '외근', desc: '외근' },
-    { code: 'D9/단' as ShiftType, label: 'D9/단', desc: '임산부 단축근무' },
+    { code: 'D9/단' as ShiftType, label: 'D9/단', desc: '임산부 단축근무(주간)' },
+    { code: 'N/단' as ShiftType, label: 'N/단', desc: '임산부 단축근무(야간)' },
   ],
 };
 
@@ -484,10 +485,11 @@ export function getShiftStyle(shift: ShiftType): { bg: string; text: string; lab
   if (shift === '#(장기근속)') return { bg: 'bg-purple-100', text: 'text-purple-700', label: '장기' };
 
   // Special
-  if (shift === '파견') return { bg: 'bg-stone-200', text: 'text-stone-700', label: '파견' };
+  if (shift === '파견') return { bg: 'bg-yellow-300', text: 'text-yellow-900', label: '파견' };
   if (shift === '출장') return { bg: 'bg-amber-200', text: 'text-amber-900', label: '출장' };
   if (shift === '외근') return { bg: 'bg-teal-100', text: 'text-teal-800', label: '외근' };
   if (shift === 'D9/단') return { bg: 'bg-blue-50', text: 'text-blue-500', label: 'D9단' };
+  if (shift === 'N/단') return { bg: 'bg-indigo-50', text: 'text-indigo-500', label: 'N단' };
 
   return { bg: 'bg-white', text: 'text-gray-400', label: '' };
 }
@@ -529,5 +531,6 @@ export const shiftDescriptions: Record<string, string> = {
   '파견': '파견근무',
   '출장': '출장',
   '외근': '외근',
-  'D9/단': '임산부 단축근무',
+  'D9/단': '임산부 단축근무 (주간)',
+  'N/단': '임산부 단축근무 (야간)',
 };

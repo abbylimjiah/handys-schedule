@@ -144,6 +144,7 @@ export const employeeRoster: Record<string, { realName: string; empCode: string 
 // Site shift code → Amaranth numeric code mapping (2026-05 표준근무시간 그리드 기준)
 // 근무: 001=주간(D9), 002=야간(E), 005=중간(M), 006=주간6(D6), 007=심야(N)
 // 휴무: 004=휴무(주), 008=휴무(야), 009=휴무(중), 010=휴무(주6), 011=휴무(심야)
+// 단축근무: D9/단=001(주간 단축), N/단=012(야간 단축)
 const shiftToAmaranth: Record<string, string> = {
   'D9': '001',
   'E': '002',
@@ -165,6 +166,7 @@ const shiftToAmaranth: Record<string, string> = {
   '#(보건)': '001', '#(경조)': '001', '#(생일)': '001', '#(출산)': '001',
   '#(육아)': '001', '#(태아)': '001', '#(창립기념일)': '001', '#(장기근속)': '001',
   '파견': '001', '출장': '001', '외근': '001', 'D9/단': '001',
+  'N/단': '012',
 };
 
 // 직원의 실명/사번 결정: 직원 데이터 우선, 없으면 정적 매핑 폴백
