@@ -70,7 +70,7 @@ export function getHoliday(year: number, month: number, day: number): Holiday | 
   return holidays2026.find(h => h.date === dateStr);
 }
 
-// All 29 branches grouped by region (tab names from BQ_2026_Schedule_NEW)
+// All 31 branches grouped by region (tab names from BQ_2026_Schedule_NEW)
 export const branches: Branch[] = [
   // 본사
   { code: '01', name: 'HQ', region: '본사', to: 5 },
@@ -100,6 +100,7 @@ export const branches: Branch[] = [
   { code: '14', name: '울산 스타즈', region: '울산', to: 8 },
   // 제주
   { code: '05', name: '제주공항', region: '제주', to: 4 },
+  { code: '35', name: '플라트 아카이브 제주', region: '제주', to: 4 },
   // 속초/강원
   { code: '08', name: '속초해변C', region: '속초/강원', to: 4 },
   { code: '10', name: '속초등대해변', region: '속초/강원', to: 5 },
