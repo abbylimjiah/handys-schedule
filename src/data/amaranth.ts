@@ -294,7 +294,10 @@ function buildSheet(
       }
       cell.t = 's';
       cell.z = '@';
-      if (cell.v !== undefined && cell.v !== null) cell.v = String(cell.v);
+      // 원본 rows 값으로 v를 강제 복원 — aoa_to_sheet이 "001" 같은 문자열을
+      // 숫자 1로 자동 변환하면서 앞의 0이 사라지는 문제 방지.
+      const original = rows[R]?.[C];
+      cell.v = original !== undefined && original !== null ? String(original) : '';
 
       // 스타일 적용
       const isHeader = R < headerRows || C < leftCols;
