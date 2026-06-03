@@ -586,3 +586,234 @@ export function downloadAllBranchesAmaranth(
   XLSX.utils.book_append_sheet(wb, ws, '교대근무');
   XLSX.writeFile(wb, `교대근무엑셀업로드_전체_${year}${String(month).padStart(2, '0')}.xlsx`);
 }
+
+// ============================================================================
+// 월 범위(Multi-month) 다운로드: 한 엑셀 파일에 월별 시트로 분리
+// ============================================================================
+
+function rangeLabel(year: number, months: number[]): string {
+  const sorted = [...months].sort((a, b) => a - b);
+  const start = sorted[0];
+  const end = sorted[sorted.length - 1];
+  if (start === end) return `${year}${String(start).padStart(2, '0')}`;
+  return `${year}${String(start).padStart(2, '0')}-${String(end).padStart(2, '0')}`;
+}
+
+// 텍스트 형식 — 단일 지점, 월 범위
+export function downloadRawTextExcelMulti(
+  branchCode: string,
+  branchName: string,
+  months: number[],
+  year: number,
+  employees: Employee[],
+  scheduleByMonth: Record<number, Record<string, CellData[]>>
+): void {
+  const wb = XLSX.utils.book_new();
+  const branchEmployees = employees.filter(e => e.code === branchCode && e.name.trim());
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  const META_COLS = 6;
+
+  months.forEach(month => {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const scheduleData = scheduleByMonth[month] || {};
+
+    const headerTop = ['지점코드', '지점명', '사번', '사원명', '닉네임', '직책'];
+    const headerBottom = ['', '', '', '', '', ''];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(year, month - 1, d);
+      headerTop.push(`${month}/${d}`);
+      headerBottom.push(dayNames[dateObj.getDay()]);
+    }
+
+    const dataRows: string[][] = [];
+    const cellTags: CellTag[][] = [];
+    branchEmployees.forEach(emp => {
+      const info = resolveEmpInfo(emp);
+      const row = [emp.code, branchName, info.empCode, info.realName, emp.name, emp.role || ''];
+      const tagRow: CellTag[] = [];
+      const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
+      for (let d = 0; d < daysInMonth; d++) {
+        const cell = cells[d];
+        if (!cell || !cell.shift) { row.push(''); tagRow.push(null); continue; }
+        let label: string = String(cell.shift);
+        if (label.startsWith('#(') && label.endsWith(')')) label = label.slice(2, -1);
+        row.push(label);
+        tagRow.push(classifyCell(cell));
+      }
+      dataRows.push(row);
+      cellTags.push(tagRow);
+    });
+
+    const allRows = [headerTop, headerBottom, ...dataRows];
+    const ws = buildSheet(allRows, { headerRows: 2, leftCols: META_COLS, cellTags });
+    XLSX.utils.book_append_sheet(wb, ws, `${month}월`);
+  });
+
+  XLSX.writeFile(wb, `스케줄_${branchCode}_${branchName}_${rangeLabel(year, months)}.xlsx`);
+}
+
+// 텍스트 형식 — 전체 지점, 월 범위 (월별로 시트 1개씩)
+export function downloadAllRawTextExcelMulti(
+  months: number[],
+  year: number,
+  employees: Employee[],
+  getAllScheduleData: (branchCode: string, month: number) => Record<string, CellData[]>,
+  branches: { code: string; name: string }[]
+): void {
+  const wb = XLSX.utils.book_new();
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  const META_COLS = 6;
+  const branchCodes = Array.from(new Set(employees.filter(e => e.name.trim()).map(e => e.code)));
+
+  months.forEach(month => {
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const headerTop = ['지점코드', '지점명', '사번', '사원명', '닉네임', '직책'];
+    const headerBottom = ['', '', '', '', '', ''];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(year, month - 1, d);
+      headerTop.push(`${month}/${d}`);
+      headerBottom.push(dayNames[dateObj.getDay()]);
+    }
+
+    const dataRows: string[][] = [];
+    const cellTags: CellTag[][] = [];
+
+    branchCodes.forEach(code => {
+      const branchName = branches.find(b => b.code === code)?.name || code;
+      const branchEmps = employees.filter(e => e.code === code && e.name.trim());
+      const scheduleData = getAllScheduleData(code, month);
+
+      branchEmps.forEach(emp => {
+        const info = resolveEmpInfo(emp);
+        const row = [emp.code, branchName, info.empCode, info.realName, emp.name, emp.role || ''];
+        const tagRow: CellTag[] = [];
+        const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
+        for (let d = 0; d < daysInMonth; d++) {
+          const cell = cells[d];
+          if (!cell || !cell.shift) { row.push(''); tagRow.push(null); continue; }
+          let label: string = String(cell.shift);
+          if (label.startsWith('#(') && label.endsWith(')')) label = label.slice(2, -1);
+          row.push(label);
+          tagRow.push(classifyCell(cell));
+        }
+        dataRows.push(row);
+        cellTags.push(tagRow);
+      });
+    });
+
+    const allRows = [headerTop, headerBottom, ...dataRows];
+    const ws = buildSheet(allRows, { headerRows: 2, leftCols: META_COLS, cellTags });
+    XLSX.utils.book_append_sheet(wb, ws, `${month}월`);
+  });
+
+  XLSX.writeFile(wb, `스케줄_전체_${rangeLabel(year, months)}.xlsx`);
+}
+
+// 아마란스 형식 — 단일 지점, 월 범위
+export function downloadAmaranthExcelMulti(
+  branchCode: string,
+  branchName: string,
+  months: number[],
+  year: number,
+  employees: Employee[],
+  scheduleByMonth: Record<number, Record<string, CellData[]>>
+): void {
+  const wb = XLSX.utils.book_new();
+  const branchEmployees = employees.filter(e => e.code === branchCode && e.name.trim());
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  const META_COLS = 7;
+
+  months.forEach(month => {
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const scheduleData = scheduleByMonth[month] || {};
+
+    const headerLabels = ['근무분류코드', '근무분류명', '근무조코드', '근무조명', '사번', '사원명', '닉네임'];
+    const headerFields = ['GROUP_CD', 'GROUP_NM', 'PRTY_CD', 'PRTY_NM', 'EMP_CD', 'EMP_NM', 'NICK'];
+    const typeSpecs = ['text', 'text', 'text', 'text', 'text', 'text', 'text'];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(year, month - 1, d);
+      headerLabels.push(dayNames[dateObj.getDay()]);
+      headerFields.push(`${year}${String(month).padStart(2, '0')}${String(d).padStart(2, '0')}`);
+      typeSpecs.push('text');
+    }
+
+    const dataRows: string[][] = [];
+    const cellTags: CellTag[][] = [];
+    branchEmployees.forEach(emp => {
+      const info = resolveEmpInfo(emp);
+      if (!info.empCode) return;
+      const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, info.empCode, info.realName, emp.name];
+      const tagRow: CellTag[] = [];
+      const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
+      for (let d = 0; d < daysInMonth; d++) {
+        const cell = cells[d];
+        row.push(cell && cell.shift ? getAmaranthCode(cell.shift as ShiftType) : '');
+        tagRow.push(classifyCell(cell));
+      }
+      dataRows.push(row);
+      cellTags.push(tagRow);
+    });
+
+    const allRows = [headerLabels, headerFields, typeSpecs, ...dataRows];
+    const ws = buildSheet(allRows, { headerRows: 3, leftCols: META_COLS, cellTags });
+    XLSX.utils.book_append_sheet(wb, ws, `${month}월`);
+  });
+
+  XLSX.writeFile(wb, `교대근무엑셀업로드_${branchCode}_${branchName}_${rangeLabel(year, months)}.xlsx`);
+}
+
+// 아마란스 형식 — 전체 지점, 월 범위 (월별로 시트 1개씩)
+export function downloadAllBranchesAmaranthMulti(
+  months: number[],
+  year: number,
+  employees: Employee[],
+  getAllScheduleData: (branchCode: string, month: number) => Record<string, CellData[]>
+): void {
+  const wb = XLSX.utils.book_new();
+  const allEmployees = employees.filter(e => e.name.trim());
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  const META_COLS = 7;
+  const branchCodes = Array.from(new Set(allEmployees.map(e => e.code)));
+
+  months.forEach(month => {
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    const headerLabels = ['근무분류코드', '근무분류명', '근무조코드', '근무조명', '사번', '사원명', '닉네임'];
+    const headerFields = ['GROUP_CD', 'GROUP_NM', 'PRTY_CD', 'PRTY_NM', 'EMP_CD', 'EMP_NM', 'NICK'];
+    const typeSpecs = ['text', 'text', 'text', 'text', 'text', 'text', 'text'];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(year, month - 1, d);
+      headerLabels.push(dayNames[dateObj.getDay()]);
+      headerFields.push(`${year}${String(month).padStart(2, '0')}${String(d).padStart(2, '0')}`);
+      typeSpecs.push('text');
+    }
+
+    const dataRows: string[][] = [];
+    const cellTags: CellTag[][] = [];
+    branchCodes.forEach(code => {
+      const scheduleData = getAllScheduleData(code, month);
+      const branchEmps = allEmployees.filter(e => e.code === code);
+      branchEmps.forEach(emp => {
+        const info = resolveEmpInfo(emp);
+        if (!info.empCode) return;
+        const row = [GROUP_CD, GROUP_NM, PRTY_CD, PRTY_NM, info.empCode, info.realName, emp.name];
+        const tagRow: CellTag[] = [];
+        const cells = scheduleData[`${emp.code}-${emp.num}`] || [];
+        for (let d = 0; d < daysInMonth; d++) {
+          const cell = cells[d];
+          row.push(cell && cell.shift ? getAmaranthCode(cell.shift as ShiftType) : '');
+          tagRow.push(classifyCell(cell));
+        }
+        dataRows.push(row);
+        cellTags.push(tagRow);
+      });
+    });
+
+    const allRows = [headerLabels, headerFields, typeSpecs, ...dataRows];
+    const ws = buildSheet(allRows, { headerRows: 3, leftCols: META_COLS, cellTags });
+    XLSX.utils.book_append_sheet(wb, ws, `${month}월`);
+  });
+
+  XLSX.writeFile(wb, `교대근무엑셀업로드_전체_${rangeLabel(year, months)}.xlsx`);
+}

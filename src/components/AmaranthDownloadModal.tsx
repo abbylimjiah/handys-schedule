@@ -8,6 +8,10 @@ import {
   downloadAllBranchesAmaranth,
   downloadRawTextExcel,
   downloadAllRawTextExcel,
+  downloadAmaranthExcelMulti,
+  downloadAllBranchesAmaranthMulti,
+  downloadRawTextExcelMulti,
+  downloadAllRawTextExcelMulti,
 } from '@/data/amaranth';
 
 interface Props {
@@ -22,6 +26,9 @@ interface Props {
 export default function AmaranthDownloadModal({ isOpen, onClose, employees, defaultYear, defaultMonth, defaultBranch }: Props) {
   const [year, setYear] = useState(defaultYear);
   const [month, setMonth] = useState(defaultMonth);
+  const [rangeMode, setRangeMode] = useState<'single' | 'range'>('single');
+  const [startMonth, setStartMonth] = useState(defaultMonth);
+  const [endMonth, setEndMonth] = useState(defaultMonth);
   const [scope, setScope] = useState<'branch' | 'all'>('branch');
   const [format, setFormat] = useState<'amaranth' | 'text'>('text');
   const [selBranch, setSelBranch] = useState(defaultBranch);
@@ -30,31 +37,81 @@ export default function AmaranthDownloadModal({ isOpen, onClose, employees, defa
 
   if (!isOpen) return null;
 
+  // 월 범위 → 월 배열 ([1,2,3,...])
+  const getMonths = (): number[] => {
+    if (rangeMode === 'single') return [month];
+    const s = Math.min(startMonth, endMonth);
+    const e = Math.max(startMonth, endMonth);
+    return Array.from({ length: e - s + 1 }, (_, i) => s + i);
+  };
+
   const handleDownload = async () => {
     setLoading(true);
     try {
+      const months = getMonths();
+      const isMulti = months.length > 1;
+
       if (scope === 'branch') {
-        setProgress(`${selBranch} 지점 ${year}년 ${month}월 스케줄 불러오는 중...`);
-        const sched = (await loadSchedule(selBranch, year, month)) || {};
         const branchName = branches.find(b => b.code === selBranch)?.name || '';
-        if (format === 'amaranth') {
-          downloadAmaranthExcel(selBranch, branchName, month, year, employees, sched);
+        if (isMulti) {
+          // 각 월별 스케줄 로드
+          const scheduleByMonth: Record<number, Record<string, CellData[]>> = {};
+          for (let i = 0; i < months.length; i++) {
+            const m = months[i];
+            setProgress(`(${i+1}/${months.length}) ${m}월 스케줄 불러오는 중...`);
+            scheduleByMonth[m] = (await loadSchedule(selBranch, year, m)) || {};
+          }
+          setProgress('엑셀 생성 중...');
+          if (format === 'amaranth') {
+            downloadAmaranthExcelMulti(selBranch, branchName, months, year, employees, scheduleByMonth);
+          } else {
+            downloadRawTextExcelMulti(selBranch, branchName, months, year, employees, scheduleByMonth);
+          }
         } else {
-          downloadRawTextExcel(selBranch, branchName, month, year, employees, sched);
+          setProgress(`${selBranch} 지점 ${year}년 ${month}월 스케줄 불러오는 중...`);
+          const sched = (await loadSchedule(selBranch, year, month)) || {};
+          if (format === 'amaranth') {
+            downloadAmaranthExcel(selBranch, branchName, month, year, employees, sched);
+          } else {
+            downloadRawTextExcel(selBranch, branchName, month, year, employees, sched);
+          }
         }
       } else {
+        // 전체 지점
         const branchCodes = Array.from(new Set(employees.filter(e => e.name.trim()).map(e => e.code)));
-        const cache: Record<string, Record<string, CellData[]>> = {};
-        for (let i = 0; i < branchCodes.length; i++) {
-          const code = branchCodes[i];
-          setProgress(`(${i+1}/${branchCodes.length}) ${code} 불러오는 중...`);
-          cache[code] = (await loadSchedule(code, year, month)) || {};
-        }
-        setProgress('엑셀 생성 중...');
-        if (format === 'amaranth') {
-          downloadAllBranchesAmaranth(month, year, employees, (code) => cache[code] || {});
+        if (isMulti) {
+          // (지점, 월) 조합으로 캐시
+          const cache: Record<string, Record<number, Record<string, CellData[]>>> = {};
+          const totalSteps = branchCodes.length * months.length;
+          let step = 0;
+          for (const code of branchCodes) {
+            cache[code] = {};
+            for (const m of months) {
+              step++;
+              setProgress(`(${step}/${totalSteps}) ${code} ${m}월 불러오는 중...`);
+              cache[code][m] = (await loadSchedule(code, year, m)) || {};
+            }
+          }
+          setProgress('엑셀 생성 중...');
+          const getSched = (code: string, m: number) => cache[code]?.[m] || {};
+          if (format === 'amaranth') {
+            downloadAllBranchesAmaranthMulti(months, year, employees, getSched);
+          } else {
+            downloadAllRawTextExcelMulti(months, year, employees, getSched, branches);
+          }
         } else {
-          downloadAllRawTextExcel(month, year, employees, (code) => cache[code] || {}, branches);
+          const cache: Record<string, Record<string, CellData[]>> = {};
+          for (let i = 0; i < branchCodes.length; i++) {
+            const code = branchCodes[i];
+            setProgress(`(${i+1}/${branchCodes.length}) ${code} 불러오는 중...`);
+            cache[code] = (await loadSchedule(code, year, month)) || {};
+          }
+          setProgress('엑셀 생성 중...');
+          if (format === 'amaranth') {
+            downloadAllBranchesAmaranth(month, year, employees, (code) => cache[code] || {});
+          } else {
+            downloadAllRawTextExcel(month, year, employees, (code) => cache[code] || {}, branches);
+          }
         }
       }
       setProgress('완료!');
@@ -102,17 +159,46 @@ export default function AmaranthDownloadModal({ isOpen, onClose, employees, defa
             </p>
           </div>
 
-          {/* Year/Month */}
+          {/* Year + Range Mode */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5">년/월 선택</label>
-            <div className="flex gap-2">
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">년도 / 기간</label>
+            <div className="flex gap-2 mb-2">
               <select value={year} onChange={e => setYear(parseInt(e.target.value))} className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm">
                 {yearOptions.map(y => <option key={y} value={y}>{y}년</option>)}
               </select>
-              <select value={month} onChange={e => setMonth(parseInt(e.target.value))} className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm">
+              <button
+                onClick={() => setRangeMode('single')}
+                className={`flex-1 px-3 py-2 text-sm rounded border-2 ${rangeMode === 'single' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-gray-300 text-gray-700'}`}
+              >
+                단일 월
+              </button>
+              <button
+                onClick={() => setRangeMode('range')}
+                className={`flex-1 px-3 py-2 text-sm rounded border-2 ${rangeMode === 'range' ? 'bg-slate-700 text-white border-slate-700' : 'bg-white border-gray-300 text-gray-700'}`}
+              >
+                월 범위
+              </button>
+            </div>
+            {rangeMode === 'single' ? (
+              <select value={month} onChange={e => setMonth(parseInt(e.target.value))} className="w-full px-3 py-2 border border-gray-300 rounded text-sm">
                 {monthOptions.map(m => <option key={m} value={m}>{m}월</option>)}
               </select>
-            </div>
+            ) : (
+              <div className="flex gap-2 items-center">
+                <select value={startMonth} onChange={e => setStartMonth(parseInt(e.target.value))} className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm">
+                  {monthOptions.map(m => <option key={m} value={m}>{m}월</option>)}
+                </select>
+                <span className="text-gray-500 text-sm">~</span>
+                <select value={endMonth} onChange={e => setEndMonth(parseInt(e.target.value))} className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm">
+                  {monthOptions.map(m => <option key={m} value={m}>{m}월</option>)}
+                </select>
+              </div>
+            )}
+            {rangeMode === 'range' && (
+              <p className="text-[10px] text-gray-500 mt-1.5">
+                💡 한 엑셀 파일 안에 월별 시트(탭)로 분리됩니다. 예: <b>{Math.min(startMonth, endMonth)}월</b> ~ <b>{Math.max(startMonth, endMonth)}월</b> = {Math.abs(endMonth - startMonth) + 1}개 시트
+              </p>
+            )}
           </div>
 
           {/* Scope */}
