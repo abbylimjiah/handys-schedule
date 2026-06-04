@@ -86,12 +86,14 @@ function todayYMD(): string {
   return `${y}-${m}-${day}`;
 }
 
-// 활성 임시권 체크 (이름 + 지점은 본인 소속 지점만 허용)
+// 활성 임시권 체크 (이름 + 지점은 본인 소속 지점 또는 배정된 branches 허용)
 export function hasActiveTemporaryGrant(name: string, branchCode: string): boolean {
   const users = getManagedUsers();
   const user = users.find(u => u.englishName === name);
   if (!user || !user.tempGrantActive) return false;
-  if (user.homeBranch !== branchCode) return false; // 본인 소속 지점만
+  // 소속 지점(homeBranch) 또는 배정된 branches에 포함된 지점만 허용 (다지점 관리자 지원)
+  const allowed = user.homeBranch === branchCode || (user.branches || []).includes(branchCode);
+  if (!allowed) return false;
   if (!user.tempGrantStart || !user.tempGrantEnd) return false;
   const today = todayYMD();
   return user.tempGrantStart <= today && user.tempGrantEnd >= today;
