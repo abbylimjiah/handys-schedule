@@ -282,19 +282,6 @@ export default function Home() {
     });
   }, [recordEmployeeHistory]);
 
-  const handleEmployeeRenumber = useCallback((branchCode: string) => {
-    setEmployees(prev => {
-      recordEmployeeHistory(prev, branchCode, `직원 순서 재정렬 (${branchCode})`);
-      const branchEmps = prev.filter(e => e.code === branchCode).sort((a, b) => a.num - b.num);
-      const others = prev.filter(e => e.code !== branchCode);
-      const renumbered = branchEmps.map((emp, idx) => ({ ...emp, num: idx + 1 }));
-      const updated = [...others, ...renumbered];
-      saveEmployees(updated);
-      saveBranchEmployees(branchCode, updated);
-      return updated;
-    });
-  }, [recordEmployeeHistory]);
-
   const handleLogout = () => { logout(); setCurrentUser(null); };
 
   if (!hydrated) return null;
@@ -389,7 +376,6 @@ export default function Home() {
           onAdd={handleEmployeeAdd}
           onUpdate={handleEmployeeUpdate}
           onDelete={handleEmployeeDelete}
-          onRenumber={handleEmployeeRenumber}
         />
       )}
 

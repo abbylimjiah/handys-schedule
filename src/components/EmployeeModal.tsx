@@ -11,7 +11,6 @@ interface EmployeeModalProps {
   onAdd: (employee: Employee) => void;
   onUpdate: (employee: Employee, field: string, value: string) => void;
   onDelete: (employee: Employee) => void;
-  onRenumber?: (branchCode: string) => void;
 }
 
 export default function EmployeeModal({
@@ -22,7 +21,6 @@ export default function EmployeeModal({
   onAdd,
   onUpdate,
   onDelete,
-  onRenumber,
 }: EmployeeModalProps) {
   const [editingCell, setEditingCell] = useState<{ empKey: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -125,19 +123,6 @@ export default function EmployeeModal({
             )}
           </div>
           <div className="flex items-center gap-2">
-            {onRenumber && branchEmployees.length > 0 && (
-              <button
-                onClick={() => {
-                  if (confirm('직원 순서를 1, 2, 3... 순으로 재정렬합니다. 계속하시겠습니까?')) {
-                    onRenumber(branchCode);
-                  }
-                }}
-                className="text-xs bg-slate-600 hover:bg-slate-500 text-white px-2 py-1 rounded"
-                title="직원 번호를 1부터 순차 재정렬"
-              >
-                🔢 순서 정리
-              </button>
-            )}
             <button onClick={onClose} className="text-slate-300 hover:text-white text-lg">
               &times;
             </button>
@@ -159,13 +144,13 @@ export default function EmployeeModal({
               </tr>
             </thead>
             <tbody>
-              {branchEmployees.map(emp => {
+              {branchEmployees.map((emp, empIdx) => {
                 const empKey = `${emp.code}-${emp.num}`;
                 const isDeleting = confirmDelete === empKey;
 
                 return (
                   <tr key={empKey} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2 text-gray-400 font-mono text-xs">{emp.num}</td>
+                    <td className="py-2 text-gray-400 font-mono text-xs">{empIdx + 1}</td>
                     <td className="py-2">
                       {editingCell?.empKey === empKey && editingCell.field === 'name' ? (
                         <input

@@ -898,7 +898,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
 
               return (
                 <tr key={empKey} className={`${rowBg} hover:bg-blue-50/30`}>
-                  <td className={`${cellBg} border-r border-b border-gray-200 text-center text-gray-400 font-mono sticky left-0 z-10`}>{emp.num}</td>
+                  <td className={`${cellBg} border-r border-b border-gray-200 text-center text-gray-400 font-mono sticky left-0 z-10`}>{empIdx + 1}</td>
                   <td
                     className={`${cellBg} border-r border-b border-gray-200 px-2 py-1.5 font-medium text-gray-800 whitespace-nowrap group sticky z-10`}
                     style={{left: '32px'}}
@@ -1073,7 +1073,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
               <tbody>
                 {allCounts.map(({ emp, counts }, idx) => (
                   <tr key={`${emp.code}-${emp.num}`} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="border-r border-b border-gray-200 text-center text-gray-400 font-mono px-1 py-1">{emp.num}</td>
+                    <td className="border-r border-b border-gray-200 text-center text-gray-400 font-mono px-1 py-1">{idx + 1}</td>
                     <td className="border-r border-b border-gray-200 px-2 py-1 font-medium text-gray-800">{emp.name || '(미정)'}</td>
                     <td className="border-r border-b border-gray-200 text-center py-1">
                       <span className={`text-[10px] font-semibold px-1 py-0.5 rounded ${
