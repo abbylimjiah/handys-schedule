@@ -155,7 +155,7 @@ export default function AmaranthDownloadModal({ isOpen, onClose, employees, defa
             <p className="text-[10px] text-gray-500 mt-1.5">
               {format === 'text'
                 ? '✅ 사람이 보기 편한 형식 (D9, E, M, 연차 등)'
-                : '⚙️ 아마란스 시스템 업로드용 코드 (근무 001=D9 / 002=E / 005=M / 006=D6 / 007=N · 휴무 004=주 / 008=야 / 009=중 / 010=주6 / 011=심야)'}
+                : '⚙️ 아마란스 시스템 업로드용 코드 (근무 001=D9 / 002=E / 005=M / 006=D6 / 007=N · 휴무 004=주 / 008=야 / 009=중 / 010=주6 / 011=심야 · 단축 012=D9단 / 013=E단 / 014=M단 / 015=N단)'}
             </p>
           </div>
 

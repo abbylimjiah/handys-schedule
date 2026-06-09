@@ -491,7 +491,7 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
       '#', '#(주)', '#(야)', '#(중)', '#(주6)', '#(심야)',
       '#(연차)', '#(대체)', '#(병가)', '#(공가)', '#(보건)',
       '#(경조)', '#(생일)', '#(출산)', '#(육아)', '#(태아)', '#(창립기념일)', '#(장기근속)',
-      '파견', '출장', '외근', 'D9/단', 'N/단',
+      '파견', '출장', '외근', 'D9/단', 'E/단', 'M/단', 'N/단',
     ]);
     const korMap: Record<string, ShiftType> = {
       '휴(주)': '#(주)', '휴(야)': '#(야)', '휴(중)': '#(중)', '휴(주6)': '#(주6)', '휴(심야)': '#(심야)',
@@ -572,9 +572,9 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
       const s = cell.shift;
       if (s === 'D6' || s === 'D6/반' || s === 'D6/반반') c.D6++;
       else if (s === 'D9' || s === 'D9/반' || s === 'D9/반반' || s === 'D9/단') c.D9++;
-      else if (s === 'M' || s === 'M/반' || s === 'M/반반') c.M++;
-      else if (s === 'E' || s === 'E/반' || s === 'E/반반') c.E++;
-      else if (s === 'N' || s === 'N/반' || s === 'N/반반') c.N++;
+      else if (s === 'M' || s === 'M/반' || s === 'M/반반' || s === 'M/단') c.M++;
+      else if (s === 'E' || s === 'E/반' || s === 'E/반반' || s === 'E/단') c.E++;
+      else if (s === 'N' || s === 'N/반' || s === 'N/반반' || s === 'N/단') c.N++;
       else if (s === '파견') c.D9++;
       // 일반 휴무 (시프트별 OFF 코드 포함): #, #(주), #(야), #(중), #(주6), #(심야)
       const isPlainOff = s === '#' || s === '#(주)' || s === '#(야)' || s === '#(중)' || s === '#(주6)' || s === '#(심야)';

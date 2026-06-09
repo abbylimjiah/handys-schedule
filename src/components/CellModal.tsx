@@ -72,8 +72,9 @@ export default function CellModal({
     setMemo(cellData.memo);
     // Set active tab based on current shift
     if (cellData.shift) {
-      if (cellData.shift.includes('반반')) setActiveTab('quarter');
-      else if (cellData.shift.includes('/반') || cellData.shift === 'D9/단' || cellData.shift === 'N/단') setActiveTab('half');
+      if (cellData.shift.endsWith('/단')) setActiveTab('special');
+      else if (cellData.shift.includes('반반')) setActiveTab('quarter');
+      else if (cellData.shift.includes('/반')) setActiveTab('half');
       else if (cellData.shift.startsWith('#')) setActiveTab('off');
       else if (cellData.shift === '파견' || cellData.shift === '출장' || cellData.shift === '외근') setActiveTab('special');
       else setActiveTab('regular');

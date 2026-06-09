@@ -6,7 +6,7 @@ export type ShiftType =
   | '#' | '#(주)' | '#(야)' | '#(중)' | '#(주6)' | '#(심야)'
   | '#(연차)' | '#(대체)' | '#(병가)' | '#(공가)' | '#(보건)'
   | '#(경조)' | '#(생일)' | '#(출산)' | '#(육아)' | '#(태아)' | '#(창립기념일)' | '#(장기근속)'
-  | '파견' | 'D9/단' | 'N/단' | '출장' | '외근'
+  | '파견' | 'D9/단' | 'E/단' | 'M/단' | 'N/단' | '출장' | '외근'
   | '';
 
 export type Role = 'Lead' | 'HM' | 'Mgr';
@@ -395,8 +395,10 @@ export const shiftCategories = {
     { code: '파견' as ShiftType, label: '파견', desc: '파견근무' },
     { code: '출장' as ShiftType, label: '출장', desc: '출장' },
     { code: '외근' as ShiftType, label: '외근', desc: '외근' },
-    { code: 'D9/단' as ShiftType, label: 'D9/단', desc: '임산부 단축근무(주간)' },
-    { code: 'N/단' as ShiftType, label: 'N/단', desc: '임산부 단축근무(야간) 예:15~22' },
+    { code: 'D9/단' as ShiftType, label: 'D9/단', desc: '임산부 단축근무(주간) → 아마란스 012' },
+    { code: 'E/단' as ShiftType, label: 'E/단', desc: '임산부 단축근무(야간) → 아마란스 013' },
+    { code: 'M/단' as ShiftType, label: 'M/단', desc: '임산부 단축근무(중간) → 아마란스 014' },
+    { code: 'N/단' as ShiftType, label: 'N/단', desc: '임산부 단축근무(심야) → 아마란스 015' },
   ],
 };
 
@@ -490,6 +492,8 @@ export function getShiftStyle(shift: ShiftType): { bg: string; text: string; lab
   if (shift === '출장') return { bg: 'bg-amber-200', text: 'text-amber-900', label: '출장' };
   if (shift === '외근') return { bg: 'bg-teal-100', text: 'text-teal-800', label: '외근' };
   if (shift === 'D9/단') return { bg: 'bg-blue-50', text: 'text-blue-500', label: 'D9단' };
+  if (shift === 'E/단') return { bg: 'bg-orange-50', text: 'text-orange-500', label: 'E단' };
+  if (shift === 'M/단') return { bg: 'bg-violet-50', text: 'text-violet-500', label: 'M단' };
   if (shift === 'N/단') return { bg: 'bg-indigo-50', text: 'text-indigo-500', label: 'N단' };
 
   return { bg: 'bg-white', text: 'text-gray-400', label: '' };
@@ -532,6 +536,8 @@ export const shiftDescriptions: Record<string, string> = {
   '파견': '파견근무',
   '출장': '출장',
   '외근': '외근',
-  'D9/단': '임산부 단축근무 (주간)',
-  'N/단': '임산부 단축근무 (야간) — 예: 15:00~22:00 (본인 사정에 맞춰 조정 가능)',
+  'D9/단': '임산부 단축근무 (주간) — 아마란스 012',
+  'E/단': '임산부 단축근무 (야간) — 아마란스 013 · 예: 15:00~22:00 (본인 사정에 맞춰 조정 가능)',
+  'M/단': '임산부 단축근무 (중간) — 아마란스 014',
+  'N/단': '임산부 단축근무 (심야) — 아마란스 015',
 };
