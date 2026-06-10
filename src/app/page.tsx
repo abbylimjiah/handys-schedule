@@ -37,8 +37,10 @@ import MonthlyRosterModal from '@/components/MonthlyRosterModal';
 import ChangeLogModal from '@/components/ChangeLogModal';
 import { fetchEmployees, saveBranchEmployees, subscribeToEmployees } from '@/lib/employeesApi';
 import { employeeRoster } from '@/data/amaranth';
-import { fetchManagedUsers } from '@/lib/usersApi';
+import { fetchManagedUsers, bulkSaveManagedUsers } from '@/lib/usersApi';
 import { saveManagedUsers } from '@/data/auth';
+import { fetchBranchTo, getBranchToOverrides, saveBranchTo, subscribeToBranchTo, BranchToMap } from '@/lib/branchToApi';
+import { addToMonthlyRoster, getMonthlyRoster, empKeyOf } from '@/lib/monthlyRosterApi';
 import { loadSchedule, subscribeToSchedule } from '@/lib/scheduleApi';
 import { CellData } from '@/data/mockData';
 import { pushHistory } from '@/lib/historyStack';
@@ -56,6 +58,7 @@ export default function Home() {
   const [changeLogOpen, setChangeLogOpen] = useState(false);
   const [actualSchedule, setActualSchedule] = useState<Record<string, CellData[]> | null>(null);
   const [employees, setEmployees] = useState<Employee[]>(defaultEmployees);
+  const [branchToOverrides, setBranchToOverrides] = useState<BranchToMap>({});
   const [hydrated, setHydrated] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const year = 2026;
@@ -123,6 +126,17 @@ export default function Home() {
     return unsubscribe;
   }, []);
 
+  // 지점 TO 조정값 로드 + 실시간 구독
+  useEffect(() => {
+    setBranchToOverrides(getBranchToOverrides());
+    (async () => {
+      const map = await fetchBranchTo();
+      setBranchToOverrides({ ...map });
+    })();
+    const unsub = subscribeToBranchTo(map => setBranchToOverrides({ ...map }));
+    return unsub;
+  }, []);
+
   // 새로 로그인하거나 employees가 업데이트될 때 본인 지점으로 이동
   useEffect(() => {
     if (!hydrated || !currentUser || employees.length === 0) return;
@@ -150,6 +164,7 @@ export default function Home() {
 
   const branch = branches.find(b => b.code === selectedBranch);
   const branchName = branch?.name || '';
+  const effectiveBranchTo = branchToOverrides[selectedBranch] ?? branch?.to;
   const branchEmployees = useMemo(() => employees.filter(e => e.code === selectedBranch), [employees, selectedBranch]);
   const scheduleData = useMemo(() => generateScheduleData(selectedBranch, selectedMonth, year, employees), [selectedBranch, selectedMonth, employees]);
 
@@ -282,6 +297,56 @@ export default function Home() {
     });
   }, [recordEmployeeHistory]);
 
+  // 발령이동: 직원을 다른 지점으로 이동 (옛 지점 과거 스케줄은 보존, 새 지점은 새로 시작)
+  // 권한(소속)·명단도 새 지점으로 자동 이동
+  const handleEmployeeTransfer = useCallback((emp: Employee, targetCode: string) => {
+    if (!targetCode || targetCode === emp.code) return;
+    const targetBranch = branches.find(b => b.code === targetCode);
+    if (!targetBranch) return;
+
+    setEmployees(prev => {
+      recordEmployeeHistory(prev, emp.code, `발령이동 (${emp.name}: ${emp.branch} → ${targetBranch.name})`);
+      const targetNums = prev.filter(e => e.code === targetCode).map(e => e.num);
+      const newNum = (targetNums.length ? Math.max(...targetNums) : 0) + 1;
+      const moved: Employee = { ...emp, code: targetCode, branch: targetBranch.name, num: newNum };
+      const updated = prev
+        .filter(e => !(e.code === emp.code && e.num === emp.num))
+        .concat(moved);
+      saveEmployees(updated);
+      saveBranchEmployees(emp.code, updated);    // 원 지점 재저장 (이동자 빠짐)
+      saveBranchEmployees(targetCode, updated);  // 새 지점 재저장 (이동자 추가)
+      // 새 지점 현재 월 명단에 추가 (명단이 이미 있을 때만; 없으면 ensureMonthlyRoster가 전체 시드)
+      try {
+        if (getMonthlyRoster(targetCode, year, selectedMonth)) {
+          addToMonthlyRoster(targetCode, year, selectedMonth, empKeyOf(moved));
+        }
+      } catch {}
+      return updated;
+    });
+
+    // 권한(소속) 자동 이동: managed_users home_branch/branches 갱신
+    (async () => {
+      try {
+        const users = await fetchManagedUsers();
+        const norm = (s: string) => (s || '').trim().toLowerCase();
+        const idx = users.findIndex(u => norm(u.englishName) === norm(emp.name));
+        if (idx >= 0) {
+          const nextUsers = users.map((x, i) =>
+            i === idx ? { ...x, homeBranch: targetCode, homeBranchName: targetBranch.name, branches: [targetCode] } : x
+          );
+          saveManagedUsers(nextUsers);
+          await bulkSaveManagedUsers(nextUsers);
+        }
+      } catch (e) { console.warn('권한 소속 이동 실패', e); }
+    })();
+  }, [recordEmployeeHistory, selectedMonth]);
+
+  // 지점 TO(정원 목표) 조정
+  const handleUpdateBranchTo = useCallback((code: string, toCount: number) => {
+    setBranchToOverrides(prev => ({ ...prev, [code]: toCount }));
+    saveBranchTo(code, toCount);
+  }, []);
+
   const handleLogout = () => { logout(); setCurrentUser(null); };
 
   if (!hydrated) return null;
@@ -320,7 +385,7 @@ export default function Home() {
           workingCount={workingCount}
           offCount={offCount}
           totalCount={branchEmployees.length}
-          branchTo={branch?.to}
+          branchTo={effectiveBranchTo}
           isEditPeriod={editPeriod}
           canEdit={canEdit}
           isHMBranch={isHMBranch}
@@ -376,6 +441,9 @@ export default function Home() {
           onAdd={handleEmployeeAdd}
           onUpdate={handleEmployeeUpdate}
           onDelete={handleEmployeeDelete}
+          onTransfer={handleEmployeeTransfer}
+          branchTo={effectiveBranchTo}
+          onUpdateBranchTo={isMaster ? handleUpdateBranchTo : undefined}
         />
       )}
 

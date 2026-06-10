@@ -11,6 +11,9 @@ interface EmployeeModalProps {
   onAdd: (employee: Employee) => void;
   onUpdate: (employee: Employee, field: string, value: string) => void;
   onDelete: (employee: Employee) => void;
+  onTransfer?: (employee: Employee, targetCode: string) => void;
+  branchTo?: number;
+  onUpdateBranchTo?: (code: string, toCount: number) => void;
 }
 
 export default function EmployeeModal({
@@ -21,6 +24,9 @@ export default function EmployeeModal({
   onAdd,
   onUpdate,
   onDelete,
+  onTransfer,
+  branchTo,
+  onUpdateBranchTo,
 }: EmployeeModalProps) {
   const [editingCell, setEditingCell] = useState<{ empKey: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -29,6 +35,10 @@ export default function EmployeeModal({
   const [newRole, setNewRole] = useState<Role>('Mgr');
   const [newHireDate, setNewHireDate] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [transferring, setTransferring] = useState<string | null>(null); // empKey being transferred
+  const [transferTarget, setTransferTarget] = useState('');
+  const [editingTo, setEditingTo] = useState(false);
+  const [toValue, setToValue] = useState('');
 
   const branchEmployees = employees.filter(e => e.code === branchCode).sort((a, b) => a.num - b.num);
   const branch = branches.find(b => b.code === branchCode);
@@ -38,6 +48,9 @@ export default function EmployeeModal({
       setEditingCell(null);
       setShowAddForm(false);
       setConfirmDelete(null);
+      setTransferring(null);
+      setTransferTarget('');
+      setEditingTo(false);
     }
   }, [isOpen]);
 
@@ -93,6 +106,18 @@ export default function EmployeeModal({
     setConfirmDelete(null);
   };
 
+  const handleConfirmTransfer = (emp: Employee) => {
+    if (onTransfer && transferTarget) onTransfer(emp, transferTarget);
+    setTransferring(null);
+    setTransferTarget('');
+  };
+
+  const handleSaveTo = () => {
+    const n = parseInt(toValue, 10);
+    if (onUpdateBranchTo && !isNaN(n) && n >= 0) onUpdateBranchTo(branchCode, n);
+    setEditingTo(false);
+  };
+
   const roleLabel = (role: string) => {
     switch (role) {
       case 'Lead': return '리드';
@@ -116,11 +141,36 @@ export default function EmployeeModal({
           <div>
             <span className="font-bold">{branch?.name || branchCode}</span>
             <span className="text-slate-300 text-sm ml-2">인원 관리</span>
-            {branch?.to && (
-              <span className="text-xs bg-slate-600 px-2 py-0.5 rounded ml-2">
-                TO: {branch.to}명 / 현재: {branchEmployees.length}명
-              </span>
-            )}
+            <span className="text-xs bg-slate-600 px-2 py-0.5 rounded ml-2 inline-flex items-center gap-1">
+              TO:
+              {editingTo && onUpdateBranchTo ? (
+                <>
+                  <input
+                    autoFocus
+                    type="number"
+                    min={0}
+                    value={toValue}
+                    onChange={e => setToValue(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleSaveTo();
+                      if (e.key === 'Escape') setEditingTo(false);
+                    }}
+                    className="w-12 px-1 py-0.5 rounded text-slate-800 text-xs"
+                  />
+                  <button onClick={handleSaveTo} className="text-emerald-300 hover:text-emerald-200" title="저장">✓</button>
+                  <button onClick={() => setEditingTo(false)} className="text-slate-300 hover:text-white" title="취소">✕</button>
+                </>
+              ) : (
+                <button
+                  onClick={() => { if (onUpdateBranchTo) { setToValue(String(branchTo ?? '')); setEditingTo(true); } }}
+                  className={onUpdateBranchTo ? 'hover:text-white cursor-pointer underline decoration-dotted' : 'cursor-default'}
+                  title={onUpdateBranchTo ? '클릭하여 TO 수정' : undefined}
+                >
+                  {branchTo ?? '-'}명{onUpdateBranchTo ? ' ✏' : ''}
+                </button>
+              )}
+              <span className="text-slate-400">/ 현재: {branchEmployees.length}명</span>
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={onClose} className="text-slate-300 hover:text-white text-lg">
@@ -149,7 +199,8 @@ export default function EmployeeModal({
                 const isDeleting = confirmDelete === empKey;
 
                 return (
-                  <tr key={empKey} className="border-b border-gray-100 hover:bg-gray-50">
+                  <React.Fragment key={empKey}>
+                  <tr className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-2 text-gray-400 font-mono text-xs">{empIdx + 1}</td>
                     <td className="py-2">
                       {editingCell?.empKey === empKey && editingCell.field === 'name' ? (
@@ -283,7 +334,7 @@ export default function EmployeeModal({
                     </td>
                     <td className="py-2 text-center">
                       {isDeleting ? (
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 justify-center">
                           <button
                             onClick={() => handleConfirmDelete(emp)}
                             className="text-[10px] px-1.5 py-0.5 bg-red-500 text-white rounded hover:bg-red-600"
@@ -298,16 +349,65 @@ export default function EmployeeModal({
                           </button>
                         </div>
                       ) : (
-                        <button
-                          onClick={() => setConfirmDelete(empKey)}
-                          className="text-gray-300 hover:text-red-500 text-sm"
-                          title="삭제"
-                        >
-                          &times;
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          {onTransfer && (
+                            <button
+                              onClick={() => { setTransferring(transferring === empKey ? null : empKey); setTransferTarget(''); setConfirmDelete(null); }}
+                              className={`text-xs ${transferring === empKey ? 'text-blue-600' : 'text-gray-300 hover:text-blue-500'}`}
+                              title="다른 지점으로 발령 이동"
+                            >
+                              🔄
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setConfirmDelete(empKey)}
+                            className="text-gray-300 hover:text-red-500 text-sm"
+                            title="삭제"
+                          >
+                            &times;
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
+                  {transferring === empKey && onTransfer && (
+                    <tr className="bg-blue-50/60 border-b border-blue-100">
+                      <td colSpan={7} className="px-3 py-2.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs text-gray-700 font-medium">🔄 {emp.name || '(미정)'} 님을</span>
+                          <select
+                            autoFocus
+                            value={transferTarget}
+                            onChange={e => setTransferTarget(e.target.value)}
+                            className="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-blue-400 bg-white"
+                          >
+                            <option value="">이동할 지점 선택...</option>
+                            {branches.filter(b => b.code !== branchCode).map(b => (
+                              <option key={b.code} value={b.code}>{b.code}_{b.name}</option>
+                            ))}
+                          </select>
+                          <span className="text-xs text-gray-700">(으)로 발령 이동</span>
+                          <button
+                            disabled={!transferTarget}
+                            onClick={() => handleConfirmTransfer(emp)}
+                            className="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            이동
+                          </button>
+                          <button
+                            onClick={() => { setTransferring(null); setTransferTarget(''); }}
+                            className="text-xs px-2.5 py-1 bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+                          >
+                            취소
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-1.5">
+                          과거 스케줄은 원래 지점에 그대로 보존되고, 권한·소속·이번 달 명단은 새 지점으로 옮겨집니다.
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
