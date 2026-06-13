@@ -24,6 +24,8 @@ import {
   removeFromMonthlyRoster,
   getMonthlyRoster,
   empKeyOf,
+  fetchAllRostersFromSupabase,
+  subscribeToMonthlyRosters,
 } from '@/lib/monthlyRosterApi';
 
 interface ScheduleGridProps {
@@ -214,6 +216,18 @@ export default function ScheduleGrid({ branchCode, month, year, employees, onEmp
     addToMonthlyRoster(branchCode, year, month, empKeyOf(emp));
     setRosterVersion(v => v + 1);
   }, [branchCode, year, month, canEdit]);
+
+  // 월별 명단을 Supabase에서 불러오기 + 실시간 구독 (마운트 시 1회)
+  // 이게 없으면 각 브라우저가 자기 localStorage 명단만 써서 기기마다 명단이 달라짐
+  // (예: 다른 사람이 신규 입사자를 명단에 넣어도 내 화면엔 반영 안 됨)
+  useEffect(() => {
+    (async () => {
+      await fetchAllRostersFromSupabase();
+      setRosterVersion(v => v + 1); // DB 명단 반영 위해 강제 리렌더
+    })();
+    const unsub = subscribeToMonthlyRosters(() => setRosterVersion(v => v + 1));
+    return unsub;
+  }, []);
 
   const days = useMemo(() => getMonthInfo(year, month), [year, month]);
   const cacheKey = `${branchCode}-${month}-${year}`;
