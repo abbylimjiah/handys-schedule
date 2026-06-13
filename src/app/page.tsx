@@ -283,9 +283,15 @@ export default function Home() {
       const updated = [...prev, augmented];
       saveEmployees(updated);
       saveBranchEmployees(augmented.code, updated);
+      // 현재 보고 있는 월 명단에 신규 직원 추가 (명단이 이미 있을 때만; 없으면 ensureMonthlyRoster가 전체 시드)
+      try {
+        if (getMonthlyRoster(augmented.code, year, selectedMonth)) {
+          addToMonthlyRoster(augmented.code, year, selectedMonth, empKeyOf(augmented));
+        }
+      } catch {}
       return updated;
     });
-  }, [recordEmployeeHistory]);
+  }, [recordEmployeeHistory, year, selectedMonth]);
 
   const handleEmployeeDelete = useCallback((emp: Employee) => {
     setEmployees(prev => {
